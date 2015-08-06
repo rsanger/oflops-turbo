@@ -33,6 +33,8 @@ void add_time(struct timeval *now, time_t secs,  suseconds_t usecs);
 void set_timeval(struct timeval *target, struct timeval *val);
 inline uint32_t time_diff(struct timeval *now, struct timeval *then);
 inline int time_cmp(struct timeval *now, struct timeval *then);
+inline int64_t timespec_diff(struct timespec *now, struct timespec *then);
+void add_timespec(struct timespec *now, time_t secs, long nsecs);
 
 void* xmalloc(size_t len);
 

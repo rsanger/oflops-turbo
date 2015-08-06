@@ -65,15 +65,30 @@ void add_time(struct timeval *now, time_t secs,  suseconds_t usecs)
     const uint64_t sec_to_usec = 1000000;
     now->tv_sec += secs;
     now->tv_usec += usecs;
-    if(now->tv_usec > sec_to_usec) {
+    if(now->tv_usec >= sec_to_usec) {
         now->tv_sec += 1;
         now->tv_usec -= sec_to_usec;
+    }
+}
+
+void add_timespec(struct timespec *now, time_t secs, long nsecs)
+{
+    const uint64_t sec_to_nsec = 1000000000;
+    now->tv_sec += secs;
+    now->tv_nsec += nsecs;
+    if(now->tv_nsec >= sec_to_nsec) {
+        now->tv_sec += 1;
+        now->tv_nsec -= sec_to_nsec;
     }
 }
 
 inline uint32_t
 time_diff(struct timeval *now, struct timeval *then) {
     return (then->tv_sec - now->tv_sec)*1000000 + (then->tv_usec - now->tv_usec);
+}
+
+inline int64_t timespec_diff(struct timespec *now, struct timespec *then) {
+    return (then->tv_sec - now->tv_sec)*INT64_C(1000000000) + (int64_t)(then->tv_nsec - now->tv_nsec);
 }
 
 inline int

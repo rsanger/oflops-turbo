@@ -18,7 +18,7 @@
 struct pkt_details {
   int traffic_gen;
   uint32_t seq_num;
-  struct timeval timestamp;
+  struct timespec timestamp;
   struct ether_header *eth;
   struct ether_vlan_header *eth_vlan;
   struct iphdr *ip;
@@ -42,7 +42,8 @@ int start_nf_traffic_generator(oflops_context *ctx);
 
 int init_traf_gen(struct oflops_context *ctx) {
   if(ctx->trafficGen == PKTGEN) {
-    setuid(0);
+    if (setuid(0) != 0)
+      perror_and_exit("setuid failed", 1);
     if(system("/sbin/modprobe pktgen") != 0)
       perror_and_exit("/sbin/modprobe pktgen failed", 1);
   }
@@ -138,38 +139,49 @@ report_traffic_generator(oflops_context *ctx) {
   }
 }
 
-/*
- * returns the time until the next packet send.
- * @param generator the generator mumber for which we
- * have to send next packet
- * @return number of milliseconds until next packet.
- */
-int
-get_next_pkt(int num_generator) {
-  int i, tm, min_tm = 1000, min_generator = -1;
-  struct timeval now;
-  gettimeofday(&now, NULL);
-  for (i = 0; i < num_generator; i++) {
-    if(( (tm = time_diff(&now, &generator_state[i]->timestamp)) <=0) && (tm < min_tm)) {
-      min_tm = tm;
-      min_generator = i;
+static inline struct timeval ts_to_tv (struct timespec *ts) {
+    struct timeval tv;
+    tv.tv_sec = ts->tv_sec;
+    tv.tv_usec = ts->tv_nsec / 1000;
+    return tv;
+}
+
+static inline struct timespec tv_to_ts (struct timeval *tv) {
+    struct timespec ts;
+    ts.tv_sec = tv->tv_sec;
+    ts.tv_nsec = tv->tv_usec * 1000;
+    return ts;
+}
+
+static inline int get_min_generator(int num_generator) {
+    int i;
+    if (num_generator == 0)
+        return -1;
+
+    int min_gen = 0;
+    struct timespec min_tv = generator_state[0]->timestamp;
+
+    for (i = 1; i < num_generator; i++) {
+        if (timespec_diff(&generator_state[i]->timestamp, &min_tv) > 0) {
+            min_gen = i;
+            min_tv = generator_state[i]->timestamp;
+        }
     }
-  }
-  return min_generator;
+
+    return min_gen;
 }
 
 int
-send_pkt(struct oflops_context *ctx, int ix) {
-  struct timeval now;
+send_pkt(struct oflops_context *ctx, int ix, struct timeval now) {
   struct pkt_details *state = generator_state[ix];
 
-  gettimeofday(&now, NULL);
   state->pktgen->seq_num = htonl(state->seq_num++);
   state->pktgen->time.tv_sec = htonl(now.tv_sec);
-  state->pktgen->time.tv_sec = htonl(now.tv_usec);
-    oflops_send_raw_mesg(ctx, state->traffic_gen, state->data, state->data_len);
-    //printf("%d: %ld.%06ld\n", state->traffic_gen, now.tv_sec, now.tv_usec);
-  add_time(&state->timestamp, 0, ctx->channels[state->traffic_gen].det->delay);
+  state->pktgen->time.tv_usec = htonl(now.tv_usec);
+  state->pktgen->tv_sec = htonl(now.tv_sec);
+  state->pktgen->tv_usec = htonl(now.tv_usec);
+  oflops_send_raw_mesg(ctx, state->traffic_gen, state->data, state->data_len);
+  add_timespec(&state->timestamp, 0, ctx->channels[state->traffic_gen].det->delay);
   return 1;
 }
 
@@ -258,17 +270,19 @@ int
 init_traffic_gen(oflops_context *ctx) {
   int num_generator = 0;
   int ix;
-
+  struct timeval now;
   srand(getpid());
 
   for(ix = 0; ix < ctx->n_channels; ix++) {
     if(ctx->channels[ix].det != NULL) {
       num_generator++;
-      generator_state = (struct pkt_details **)realloc(generator_state, num_generator);
+      generator_state = (struct pkt_details **)realloc(generator_state, num_generator * sizeof(struct pkt_details *));
       generator_state[num_generator - 1] = (struct pkt_details *)xmalloc(sizeof(struct pkt_details));
+      memset(generator_state[num_generator - 1], 0, sizeof(struct pkt_details));
       generator_state[num_generator - 1]->traffic_gen = ix;
-      gettimeofday(&(generator_state[num_generator - 1]->timestamp), NULL);
-      add_time(&(generator_state[num_generator - 1]->timestamp), 0,  (rand()%1000000));
+      gettimeofday(&now, NULL);
+      generator_state[num_generator - 1]->timestamp = tv_to_ts(&now);
+      add_timespec(&(generator_state[num_generator - 1]->timestamp), 0,  (rand()%1000000000));
       innitialize_generator_packet(generator_state[num_generator - 1], ctx->channels[ix].det);
     }
   }
@@ -277,13 +291,25 @@ init_traffic_gen(oflops_context *ctx) {
 
 int
 start_user_traffic_generator(oflops_context *ctx) {
-  int num_generator = init_traffic_gen(ctx), generator;
+  int num_generator = init_traffic_gen(ctx);
+  int nr;
+  struct timeval now = {0}, ts = {0};
   while(ctx->should_end == 0) {
-    generator = get_next_pkt(num_generator);
-    if(generator >= 0 ) {
-      send_pkt(ctx, generator);
+    nr = get_min_generator(num_generator);
+    gettimeofday(&now, NULL);
+
+    // No traffic generation? Keep the thread running until asked to stop.
+    if (nr < 0) {
+        usleep(100000);
+        continue;
     }
-  };
+    ts = ts_to_tv(&generator_state[nr]->timestamp);
+    int32_t u_diff = time_diff(&now, &ts);
+    if (u_diff > 0)
+      usleep(u_diff);
+    else
+      send_pkt(ctx, nr, now);
+  }
   return 1;
 }
 
@@ -383,12 +409,12 @@ start_pktgen_traffic_generator(oflops_context *ctx) {
   int i = 0;
   struct stat st;
 
+  // TODO this looks really wrong if we have more channels than threads
   for(ix = 0; ix < ctx->n_channels; ix++) {
     sprintf(file, "/proc/net/pktgen/kpktgend_%d", i);
     if(stat(file, &st) == 0) {
       i++;
       printf_and_check(file, "rem_device_all");
-      printf_and_check(file, buf);
     }
   }
   i=0;
@@ -397,7 +423,6 @@ start_pktgen_traffic_generator(oflops_context *ctx) {
     if(ctx->channels[ix].det != NULL) {
       sprintf(file, "/proc/net/pktgen/kpktgend_%d", i);
       i++;
-      //printf_and_check(file, "rem_device_all");
       snprintf(buf, 5000, "add_device %s", ctx->channels[ix].dev);
       printf_and_check(file, buf);
       //printf_and_check(file, "max_before_softirq 1000");
@@ -463,7 +488,7 @@ start_pktgen_traffic_generator(oflops_context *ctx) {
   printf_and_check("/proc/net/pktgen/pgctrl", "start");
 
   return 1;
-};
+}
 
 int
 stop_traffic_generator( oflops_context *ctx) {
@@ -482,7 +507,7 @@ stop_traffic_generator( oflops_context *ctx) {
   }
 
   return 1;
-};
+}
 
 //check here whether the pktgen format is correct
 struct pktgen_hdr *
