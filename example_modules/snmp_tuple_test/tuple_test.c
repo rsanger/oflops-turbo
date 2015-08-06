@@ -164,7 +164,6 @@ int init(struct oflops_context *ctx, char * config_str) {
  */
 int start(struct oflops_context * ctx) { 
   void *b;
-  msg_init();  
   int ret;
   //get the mac address of channel 1
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, local_mac);

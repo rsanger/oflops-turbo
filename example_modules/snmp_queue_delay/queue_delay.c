@@ -159,7 +159,6 @@ int start(struct oflops_context * ctx) {
   void *b;
   struct flow *fl = (struct flow*)xmalloc(sizeof(struct flow));
   int ret, res, len;
-  msg_init();  
 
   //get the mac address of channel 1
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, local_mac);

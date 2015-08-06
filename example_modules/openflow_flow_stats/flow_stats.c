@@ -384,8 +384,6 @@ int start(struct oflops_context * ctx)
   // we can create and send messages. 
   void *b;
 
-  msg_init();
-
   //make filedescriptor blocking
   int saved_flags = fcntl(ctx->control_fd, F_GETFL);
   fcntl(ctx->control_fd, F_SETFL, saved_flags & ~O_NONBLOCK);

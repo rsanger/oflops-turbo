@@ -35,7 +35,6 @@ oflops_SOURCES= \
 	msg.c msg.h \
 	log.c log.h \
 	traffic_generator.c traffic_generator.h \
-  of_parser.c of_parser.h\
 	usage.h usage.c 
 oflops_LDFLAGS=-static -Wl,-E
 

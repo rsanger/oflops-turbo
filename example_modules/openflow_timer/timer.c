@@ -120,9 +120,6 @@ start(struct oflops_context * ctx) {
   struct timeval now;
   char msg[1024];
 
-  //Initialize pap-based  tcp flow reassembler for the communication 
-  //channel
-  msg_init();  
   snprintf(msg, 1024,  "Intializing module %s", name());
 
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, data_mac);

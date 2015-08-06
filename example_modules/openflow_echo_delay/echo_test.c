@@ -97,8 +97,6 @@ start(struct oflops_context * ctx) {
   struct timeval now;
   char msg[1024];
 
-  msg_init();
-
   //log when I start module
   gettimeofday(&now, NULL);
   snprintf(msg, 1024,  "Intializing module %s", name());

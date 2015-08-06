@@ -159,9 +159,6 @@ start(struct oflops_context * ctx) {
   //init h
   TAILQ_INIT(&head); 
 
-  //Initialize pap-based  tcp flow reassembler for the communication 
-  //channel
-  msg_init();  
   snprintf(msg, 1024,  "Intializing module %s", name());
 
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, local_mac);

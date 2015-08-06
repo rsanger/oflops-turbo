@@ -139,9 +139,6 @@ start(struct oflops_context * ctx) {
   struct timeval now;  //init measurement queue
   TAILQ_INIT(&head);
 
-  //init logging service
-  msg_init();
-
   //log when I start module
   gettimeofday(&now, NULL);
   oflops_log(now,GENERIC_MSG , "Intializing module openflow_action_measurement");

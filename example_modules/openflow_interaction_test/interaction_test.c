@@ -305,7 +305,6 @@ int start(struct oflops_context * ctx)
   // we can create and send messages. 
   void *b;
 
-  msg_init();
   bzero(&flow_mod_timestamp, sizeof(struct timeval));
 
   ip_received = xmalloc(flows*sizeof(int));

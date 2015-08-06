@@ -106,9 +106,6 @@ int start(struct oflops_context * ctx) {
   //init measurement queue
   TAILQ_INIT(&head); 
 
-  //Initialize pcap-based  tcp flow reassembler for the communication 
-  //channel
-  msg_init();
   snprintf(msg, 1024,  "Intializing module %s", name());
 
   //log when I start module

@@ -138,9 +138,6 @@ start(struct oflops_context * ctx) {
     //init module packet queue
     TAILQ_INIT(&head);
 
-    //Initialize pap-based  tcp flow reassembler for the communication
-    //channel
-    msg_init();
     bzero(&flow_mod_timestamp, sizeof(struct timeval));
     snprintf(msg, 1024,  "Intializing module %s", name());
 
