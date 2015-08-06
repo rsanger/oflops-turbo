@@ -87,10 +87,15 @@ void setup_channel(oflops_context *ctx, test_module *mod, oflops_channel_name ch
   // setup pcap filter, if wanted
   if( mod->get_pcap_filter(ctx,ch,buf,BUFLEN) <=0)
   {
-    fprintf(stderr, "Test %s:  No pcap filter for channel %d on %s\n",
-        mod->name(), ch, ch_info->dev);
-    ch_info->pcap_handle=NULL;
-    return;
+    // By default filter control traffic so that the --trace option works as expected
+    if (ch==OFLOPS_CONTROL) {
+      snprintf(buf, sizeof(buf), "tcp port %d", ctx->listen_port);
+    } else {
+      fprintf(stderr, "Test %s:  No pcap filter for channel %d on %s\n",
+              mod->name(), ch, ch_info->dev);
+      ch_info->pcap_handle=NULL;
+      return;
+    }
   }
   assert(ch_info->dev);		// need to have someting here
   fprintf(stderr,"Test %s:  Starting pcap filter \"%s\" on dev %s for channel %d\n",
