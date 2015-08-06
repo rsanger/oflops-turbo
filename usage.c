@@ -21,9 +21,9 @@ struct option oflops_options[] = {
   {"snmp-dev", optional_argument, NULL, 's'}, 	     // --snmp-dev necsw.openflow.org
   {"data-dev", required_argument, NULL, 'd'},        // --data-dev eth1
   {"port", required_argument, NULL, 'p'}, 	     // --port 6633
-  {"log", required_argument, DEFAULT_LOG_FILE, 'o'}, // --log oflops.log
-  {"generator", required_argument, 2, 'g'}, 	     // -g 1
-  {"trace", no_argument, 2, 't'}, 		     // -t 1
+  {"log", required_argument, NULL, 'o'}, // --log oflops.log
+  {"generator", required_argument, NULL, 'g'}, 	     // -g 1
+  {"trace", no_argument, NULL, 't'}, 		     // -t
   {"input_config", required_argument, NULL, 'i'},    // -i 1
   { 0 , 0 , 0, 0}
 };
