@@ -25,7 +25,7 @@ typedef struct channel_info {
   struct ptrack_list * timestamps; /**< (Deprecated) a list of buffers to store pcap packet timestamp */
   struct msgbuf * outgoing;       /**< a buffer to store data send out of the interface */
   struct traf_gen_det *det;       /**< a description of the artificial traffic generated on the channel (valid only for data channels). */
-  struct pcap_dump_t *dump;       /**< the structure that store the stores the state of the file, on which we dump pcap data(used only by the control channel) */
+  pcap_dumper_t *dump;             /**< the structure that store the stores the state of the file, on which we dump pcap data(used only by the control channel) */
   oid inOID[MAX_OID_LEN];         /**< SNMP oid of the input counter of the port on which the channel is attached on the switch */
   size_t inOID_len;               /**< length of the input OID structure */
   oid outOID[MAX_OID_LEN];        /**< SNMP oid of the output counter of the port on which the channel is attached on the switch */

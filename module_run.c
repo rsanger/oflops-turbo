@@ -312,13 +312,14 @@ static void process_control_event(oflops_context *ctx, test_module * mod, struct
  */
 static void process_pcap_event(oflops_context *ctx, test_module * mod, struct pollfd *pfd, oflops_channel_name ch)
 {
-    struct pcap_event_wrapper wrap;
-    int count;
-    uint8_t *data;
+    int err;
+    const uint8_t *data;
     static pcap_event *pe = NULL;
+    struct pcap_pkthdr *pkt_header = NULL;
+    const u_char *pkt_data = NULL;
+    struct pcap_event pcap_e;
 
     if(pfd->revents & POLLOUT) {
-        int err;
         if((err=msgbuf_write(ctx->channels[ch].outgoing,ctx->channels[ch].raw_sock, ctx->channels[ch].packet_len) < 0) &&
                 (err != EAGAIN) && (err != EWOULDBLOCK ) && (err != EINTR))
             perror_and_exit("channel write()",1);
@@ -329,26 +330,26 @@ static void process_pcap_event(oflops_context *ctx, test_module * mod, struct po
     // read the next packet from the appropriate pcap socket
     if(ctx->channels[ch].cap_type == PCAP) {
         assert(ctx->channels[ch].pcap_handle);
-        count = pcap_dispatch(ctx->channels[ch].pcap_handle, 1, oflops_pcap_handler, (u_char *) & wrap);
+        err = pcap_next_ex(ctx->channels[ch].pcap_handle, &pkt_header, &pkt_data);
 
-        //dump packet if required
-        if((ch == OFLOPS_CONTROL) && (ctx->channels[ch].pcap_handle)
-                && (ctx->dump_controller)) {
-            pcap_dump((u_char *)ctx->channels[ch].dump, &wrap.pe->pcaphdr, wrap.pe->data);
-        }
-
-        if (count == 0)
+        if (err == 0)
             return;
-        if (count < 0)
+        if (err < 0)
         {
-            fprintf(stderr,"process_pcap_event:pcap_dispatch returned %d :: %s \n", count,
+            fprintf(stderr,"process_pcap_event:pcap_dispatch returned %d :: %s \n", err,
                     pcap_geterr(ctx->channels[ch].pcap_handle));
             return;
         }
+        //dump packet if required
+        if((ch == OFLOPS_CONTROL) && (ctx->channels[ch].pcap_handle)
+                && (ctx->dump_controller)) {
+            pcap_dump((u_char *)ctx->channels[ch].dump, pkt_header, pkt_data);
+        }
+
+        pcap_e.data = pkt_data;
+        memcpy(&pcap_e.pcaphdr, pkt_header, sizeof(pcap_e.pcaphdr));
         // dispatch it to the test module
-        mod->handle_pcap_event(ctx, wrap.pe, ch);
-        // clean up our mess
-        pcap_event_free(wrap.pe);
+        mod->handle_pcap_event(ctx, &pcap_e, ch);
     } else  if(ctx->channels[ch].cap_type == NF2) {
         if(pe == NULL) {
             pe = malloc_and_check(sizeof(pcap_event));
