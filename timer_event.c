@@ -29,11 +29,13 @@ int timer_run_next_event(struct oflops_context *ctx)
 	timer_event te;
 
 	err = wc_queue_extract(ctx->timers, &id, &t, &func, &val);
-	te.timer_id = id;
-	te.arg = val;
-	te.sched_time  = t;
-	// func is ignored by oflops
-	ctx->curr_test->handle_timer_event(ctx, &te);
+    if (err == 0) {
+        te.timer_id = id;
+        te.arg = val;
+        te.sched_time  = t;
+        // func is ignored by oflops
+        ctx->curr_test->handle_timer_event(ctx, &te);
+    }
 	
 	return 0;
 }

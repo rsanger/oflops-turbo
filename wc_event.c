@@ -43,6 +43,8 @@ typedef struct wc_queue {
 	int length;
 	int size;
 	int timersEnabled;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
 } wc_queue;
 
 /*************************** protos
@@ -91,11 +93,15 @@ wc_queue * wc_queue_init(int initSize){
 	pq->timersEnabled=0;	// start with timers disabled
 
 	WC_Queue=pq;
+    pthread_mutex_init(&pq->lock, NULL);
+    pthread_cond_init(&pq->cond, NULL);
 	return pq;
 }
 
 void wc_queue_free(/*@only@*/ wc_queue * pq){
 	assert(pq);
+    pthread_mutex_destroy(&pq->lock);
+    pthread_cond_destroy(&pq->cond);
 	free(pq->array);
 	free(pq);
 }
@@ -142,7 +148,8 @@ int wc_event_add(wc_queue* pq, void (*fun)(void *), void *arg, struct timeval ke
 	wc_event * data;
 	int id;
 
-	assert(pq->timersEnabled==0);		// only allow adds when timers are off
+    assert(pq->timersEnabled==0);		// only allow adds when timers are off
+    pthread_mutex_lock(&pq->lock);
 	if((pq->size+1)>=pq->length)		// the "+1" is critical, b/c we start at array[1]
 		wc_queue_double(pq);
 	pq->size++;
@@ -160,6 +167,8 @@ int wc_event_add(wc_queue* pq, void (*fun)(void *), void *arg, struct timeval ke
 	pq->array[i].data=data;
 	id=pq->array[i].id=WC_EVENT_ID++;
 	// Do no scheduling here; will be handled elsewhere
+    pthread_cond_broadcast(&pq->cond);
+    pthread_mutex_unlock(&pq->lock);
 	return id;
 }
 
@@ -207,7 +216,9 @@ int wc_queue_extract(wc_queue *pq , int * id, struct timeval * key,void (**fun)(
 	wc_event * data;
 	assert(pq);
 	assert(pq->timersEnabled==0);
+    pthread_mutex_lock(&pq->lock);
 	if(pq->size<1){		//empty
+        pthread_mutex_unlock(&pq->lock);
 		return -1;
 	}
 	data=pq->array[1].data;
@@ -220,6 +231,8 @@ int wc_queue_extract(wc_queue *pq , int * id, struct timeval * key,void (**fun)(
 	*fun=data->fun;
 	*arg=data->arg;
 	free(data);
+    pthread_cond_broadcast(&pq->cond);
+    pthread_mutex_unlock(&pq->lock);
 	return 0;
 
 }
@@ -273,7 +286,6 @@ int wc_run_next_event(wc_queue * pq)
 	void (*fun)(void *);
 	void*arg;
 	struct timeval key,now,diff;
-	static struct timeval last = {0,0};
 	int id;
 
 	diff.tv_sec = diff.tv_usec = 0;
@@ -286,7 +298,6 @@ int wc_run_next_event(wc_queue * pq)
 	// Don't do this, because time on Planet-lab can roll backwards; and yes, that's a problem here
 	// assert(timercmp(&key,&last,>=));	// assert that this event happens after the last one
 	timersub(&now,&key,&diff);
-	last=key;
 	/*
 	if(diff.tv_sec<1)			// that this event went off less then 1 sec after it was 
 		logtype=LOGDEBUG2;
@@ -316,8 +327,9 @@ int wc_get_next_event_delta(struct wc_queue * pq, struct timeval *delta)
 	struct timeval now;
 	qelm *data;
 	assert(pq->timersEnabled==0);	// should only be called when timers are disabled
-	if(wc_queue_isempty(pq))
-		return -1;
+    if(wc_queue_isempty(pq)) {
+        return -1;
+    }
 	data=&pq->array[1];		// DUMBASS: we skip array[0] b/c it makes the math easier
 	gettimeofday(&now,NULL);
 	if(timercmp(&now,&data->key,>)) {
@@ -387,21 +399,29 @@ void wc_disable_timers(struct wc_queue *pq)
  *  The main event loop of the event subsystem. 
  */
 void *event_loop(void *param) {
-  int next_event;
-  struct run_module_param* state = (struct run_module_param *)param;
-  
-  //timer_init(state->ctx);
-  printf("event loop\n");
+    int next_event;
+    struct run_module_param* state = (struct run_module_param *)param;
 
-  while(state->ctx->should_end == 0) {
-    next_event = timer_get_next_event(state->ctx);
-    if(next_event <= 0 ) {
-      pthread_yield();
-      timer_run_next_event(state->ctx);
-      //next_event = timer_get_next_event(ctx);
-    }
-  };
-  return NULL;
+    printf("event loop\n");
+
+    // Most of the time we should be spending waiting for timeouts
+    while(state->ctx->should_end == 0) {
+        pthread_mutex_lock(&state->ctx->timers->lock);
+        next_event = timer_get_next_event(state->ctx);
+        while (next_event > 0) {
+            struct timespec ts;
+            ts.tv_sec = next_event / 1000000;
+            ts.tv_nsec = (next_event % 1000000) * 1000;
+            pthread_cond_timedwait(&state->ctx->timers->cond, &state->ctx->timers->lock, &ts);
+            next_event = timer_get_next_event(state->ctx);
+        }
+        pthread_mutex_unlock(&state->ctx->timers->lock);
+        if(next_event <= 0 ) {
+            timer_run_next_event(state->ctx);
+        }
+    };
+
+    return NULL;
 }
 
 /******************************************************
