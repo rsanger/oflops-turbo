@@ -88,3 +88,42 @@ int default_module_handle_traffic_generation(struct oflops_context * ctx)
 {
     return 0;
 }
+
+void default_module_of_message(struct oflops_context *ctx, uint8_t of_version, uint8_t type, void *data, size_t len)
+{
+    switch(type)
+    {
+    case OFPT_PACKET_IN:
+        ctx->curr_test->of_event_packet_in(ctx, (struct ofp_packet_in *)data);
+        break;
+    case OFPT_FLOW_EXPIRED:
+    #ifdef HAVE_OFP_FLOW_EXPIRED
+        ctx->curr_test->of_event_flow_removed(ctx, (struct ofp_flow_expired *)data);
+    #elif defined(HAVE_OFP_FLOW_REMOVED)
+        ctx->curr_test->of_event_flow_removed(ctx, (struct ofp_flow_removed *)data);
+    #else
+    # error "Unknown version of openflow"
+    #endif
+        break;
+    case OFPT_PORT_STATUS:
+        ctx->curr_test->of_event_port_status(ctx, (struct ofp_port_status *)data);
+        break;
+    case OFPT_ECHO_REQUEST:
+        ctx->curr_test->of_event_echo_request(ctx, (struct ofp_header *)data);
+        break;
+    default:
+        if (type > OFPT_BARRIER_REPLY)   // FIXME: update for new openflow versions
+        {
+            fprintf(stderr, "%s:%d :: Data buffer probably trashed : unknown openflow type %d\n",
+                    __FILE__, __LINE__, type);
+            abort();
+        }
+        ctx->curr_test->of_event_other(ctx, (struct ofp_header * ) data);
+        break;
+    }
+}
+
+const uint8_t *default_module_get_openflow_versions() {
+    static uint8_t versions[] = {0x1,0x0};
+    return versions;
+}

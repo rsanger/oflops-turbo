@@ -14,6 +14,7 @@
 #include "module_run.h"
 #include "log.h"
 
+int load_config_file(oflops_context * ctx, const char *config);
 
 struct option oflops_options[] = {
   // 	name	, has_arg,  *var, val
@@ -25,6 +26,10 @@ struct option oflops_options[] = {
   {"generator", required_argument, NULL, 'g'}, 	     // -g 1
   {"trace", no_argument, NULL, 't'}, 		     // -t
   {"input_config", required_argument, NULL, 'i'},    // -i 1
+  {"of_versions", required_argument, NULL, 'v'}, // A comma seperated list of openflow versions to use
+  {"tls-cert", required_argument, NULL, 'x'},
+  {"tls-privkey", required_argument, NULL, 'y'},
+  {"tls-trustedcert", required_argument, NULL, 'z'},
   { 0 , 0 , 0, 0}
 };
 
@@ -116,6 +121,29 @@ int parse_args(oflops_context * ctx, int argc, char * argv[])
 	case 't':
 	  ctx->dump_controller = 1;
 	  break;
+    case 'x':
+      ctx->tls_cert = optarg;
+      break;
+    case 'y':
+      ctx->tls_privkey = optarg;
+      break;
+    case 'z':
+      ctx->tls_trustedcert = optarg;
+      break;
+    case 'v':
+          ;char * pch;
+          pch = strtok(optarg, ",");
+          while (pch != NULL) {
+              uint8_t val = atoi(pch);
+              if (ctx->of_versions == NULL) {
+                ctx->of_versions = malloc_and_check(1);
+              } else {
+                ctx->of_versions = realloc_and_check(ctx->of_versions, ctx->nb_of_versions+1);
+              }
+              ctx->of_versions[ctx->nb_of_versions++] = val;
+              pch = strtok(NULL, ",");
+          }
+      break;
 	default:
 	  usage("unknown option", argv[optind]);
 	}
@@ -234,6 +262,30 @@ load_config_file(oflops_context * ctx, const char *config) {
         if(config_setting_get_string(elem) != NULL) {
             printf("Setting up control channel on %s\n", config_setting_get_string(elem));
             channel_info_init(&ctx->channels[OFLOPS_CONTROL], config_setting_get_string(elem));
+        }
+    }
+
+    elem = config_lookup(&conf, "oflops.control.tls_cert");
+    if(elem != NULL) {
+        if(config_setting_get_string(elem) != NULL) {
+            printf("Using tls cert %s\n", config_setting_get_string(elem));
+            ctx->tls_cert = strdup(config_setting_get_string(elem));
+        }
+    }
+
+    elem = config_lookup(&conf, "oflops.control.tls_privkey");
+    if(elem != NULL) {
+        if(config_setting_get_string(elem) != NULL) {
+            printf("Using tls privkey %s\n", config_setting_get_string(elem));
+            ctx->tls_privkey = strdup(config_setting_get_string(elem));
+        }
+    }
+
+    elem = config_lookup(&conf, "oflops.control.tls_trustedcert");
+    if(elem != NULL) {
+        if(config_setting_get_string(elem) != NULL) {
+            printf("Using tls trustedcert %s\n", config_setting_get_string(elem));
+            ctx->tls_trustedcert = strdup(config_setting_get_string(elem));
         }
     }
 
@@ -378,4 +430,4 @@ load_config_file(oflops_context * ctx, const char *config) {
     }
 
     config_destroy(&conf);
-};
+}

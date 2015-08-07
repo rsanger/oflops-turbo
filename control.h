@@ -8,6 +8,7 @@
  * of the context. 
  */
 int setup_control_channel(oflops_context *ctx);
-
+void teardown_control_channel(oflops_context *ctx);
+int write_oflops_control(oflops_context *ctx, void* data, size_t len);
 
 #endif

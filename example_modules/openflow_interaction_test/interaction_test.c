@@ -311,8 +311,8 @@ int start(struct oflops_context * ctx)
   memset(ip_received, 0, flows*sizeof(int));
 
   //make filedescriptor blocking
-  int saved_flags = fcntl(ctx->control_fd, F_GETFL);
-  fcntl(ctx->control_fd, F_SETFL, saved_flags & ~O_NONBLOCK);
+  /*int saved_flags = fcntl(ctx->control_fd, F_GETFL);
+  fcntl(ctx->control_fd, F_SETFL, saved_flags & ~O_NONBLOCK);*/
   
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, data_mac);
   printf("%s: %02x:%02x:%02x:%02x:%02x:%02x\n", ctx->channels[OFLOPS_DATA1].dev,
@@ -323,14 +323,10 @@ int start(struct oflops_context * ctx)
   gettimeofday(&now, NULL);
   oflops_log(now,GENERIC_MSG , "Intializing module openflow_flow_dump_test");
 
-  make_ofp_hello(&b);
-  ret = write(ctx->control_fd, b, sizeof(struct ofp_hello));
-  free(b);  
-
   // send a features request, to stave off timeout (ignore response)
   printf("cleaning up flow table...\n");
   res = make_ofp_flow_del(&b);
-  ret = write(ctx->control_fd, b, res);
+  ret = oflops_send_of_mesgs(ctx, b, res);
   free(b);
 
   sleep(10);
@@ -356,7 +352,7 @@ int start(struct oflops_context * ctx)
   fl->tp_dst = htons(8080);  
   fl->in_port = htons(ctx->channels[OFLOPS_DATA1].of_port);
   for(i=0; i< flows; i++) {
-    do {
+    /*do {
       bzero(poll_set, sizeof(struct pollfd));
       poll_set[0].fd = ctx->control_fd;
       poll_set[0].events = POLLOUT;
@@ -364,11 +360,11 @@ int start(struct oflops_context * ctx)
     } while ((ret == 0) || ((ret > 0) && !(poll_set[0].revents & POLLOUT)) );
     
     if(( ret == -1 ) && ( errno != EINTR))
-      perror_and_exit("poll",1);
+      perror_and_exit("poll",1);*/
     
     len = make_ofp_flow_add(&b, fl, ctx->channels[OFLOPS_DATA3].of_port, 1, 1200);
     ((struct ofp_flow_mod *)b)->flags = 0;
-    ret = write(ctx->control_fd, b, len);
+    ret = oflops_send_of_mesgs(ctx, b, len);
     free(b);
 
     //calculate next ip
@@ -377,7 +373,7 @@ int start(struct oflops_context * ctx)
 
   fl->in_port = htons(ctx->channels[OFLOPS_DATA2].of_port);
   for(; i< total_flows; i++) {
-    do {
+    /*do {
       bzero(poll_set, sizeof(struct pollfd));
       poll_set[0].fd = ctx->control_fd;
       poll_set[0].events = POLLOUT;
@@ -385,11 +381,11 @@ int start(struct oflops_context * ctx)
     } while ((ret == 0) || ((ret > 0) && !(poll_set[0].revents & POLLOUT)) );
     
     if(( ret == -1 ) && ( errno != EINTR))
-      perror_and_exit("poll",1);
+      perror_and_exit("poll",1);*/
     
     len = make_ofp_flow_add(&b, fl, ctx->channels[OFLOPS_DATA3].of_port, 1, 1200);
     ((struct ofp_flow_mod *)b)->flags = 0;
-    ret = write(ctx->control_fd, b, len);
+    ret = oflops_send_of_mesgs(ctx, b, len);
     free(b);
 
     //calculate next ip
@@ -459,7 +455,7 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
     len = make_ofp_aggr_flow_stats(&b, trans_id++);
     
     //send stats request
-    ret = write(ctx->control_fd, b, len);
+    ret = oflops_send_of_mesgs(ctx, b, len);
     //res = oflops_send_of_mesg(ctx, b);
     free(b);
 
@@ -496,7 +492,7 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
     ip_addr.s_addr =  ntohl(inet_addr(network));
     for(i=0; i< flows; i++) {
       fl.nw_dst =   htonl(ntohl(inet_addr(network)) + i);
-      do {
+      /*do {
         bzero(poll_set, sizeof(struct pollfd));
         poll_set[0].fd = ctx->control_fd;
         poll_set[0].events = POLLOUT;
@@ -504,18 +500,17 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
       } while ((ret == 0) || ((ret > 0) && !(poll_set[0].revents & POLLOUT)) );
     
       if(( ret == -1 ) && ( errno != EINTR))
-        perror_and_exit("poll",1);
+        perror_and_exit("poll",1);*/
 
       len = make_ofp_flow_modify_output_port(&b, &fl, ctx->channels[OFLOPS_DATA2].of_port, 1, 120);
       ((struct ofp_flow_mod *)b)->flags = 0;
-      ret = write(ctx->control_fd, b, len);
-      //oflops_send_of_mesgs(ctx, b, len);
+      ret = oflops_send_of_mesgs(ctx, b, len);
       free(b);
     }
     oflops_gettimeofday(ctx, &flow_mod_timestamp);
     make_ofp_hello(&b);
     ((struct ofp_header *)b)->type = OFPT_BARRIER_REQUEST;
-    ret = write(ctx->control_fd, b, sizeof(struct ofp_header));
+    ret = oflops_send_of_mesgs(ctx, b, sizeof(struct ofp_header));
     free(b);  
     stored_flow_mod_time = 1; 
     printf("pcap flow modification send %lu.%06lu %d\n",  flow_mod_timestamp.tv_sec, flow_mod_timestamp.tv_usec, table); 
@@ -721,19 +716,19 @@ of_event_other(struct oflops_context *ctx, const struct ofp_header * ofph) {
     stats_counter[ntohl(ofph->xid)].pkt_count++;
     if(ntohs(ofpr->type) == OFPST_FLOW) {
       if(!(ntohs(ofpr->flags) & OFPSF_REPLY_MORE)) {
-	oflops_gettimeofday(&now, NULL);
+    oflops_gettimeofday(ctx, &now);
 	memcpy(&stats_counter[ntohl(ofph->xid)].rcv, &now, sizeof(struct timeval));
 	stats_count++;
       }
     }
   } else if (ofph->type == OFPT_ERROR) {
-    oflops_gettimeofday(&now, NULL);
+    oflops_gettimeofday(ctx, &now);
     err_p = (struct ofp_error_msg *)ofph;
     sprintf(msg, "OFPT_ERROR(type: %d, code: %d)", ntohs(err_p->type), ntohs(err_p->code));
     oflops_log(now, OFPT_ERROR_MSG, msg);
     fprintf(stderr, "%s\n", msg);
   } else if (ofph->type == OFPT_BARRIER_REPLY) {
-    oflops_gettimeofday(&now, NULL);
+    oflops_gettimeofday(ctx, &now);
     snprintf(msg, 1024, "BARRIER_DELAY:%d", time_diff(&flow_mod_timestamp, &now));
     oflops_log(now, GENERIC_MSG, msg);
     printf("BARRIER_DELAY:%d\n",  time_diff(&flow_mod_timestamp, &now));

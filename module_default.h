@@ -68,5 +68,7 @@ int default_module_of_event_other(struct oflops_context *ctx, const struct ofp_h
 int default_module_handle_timer_event(struct oflops_context * ctx, struct timer_event * te);
 int default_module_handle_snmp_event(struct oflops_context * ctx, struct snmp_event * se);
 int default_module_handle_traffic_generation(struct oflops_context * ctx);
+void default_module_of_message(struct oflops_context *ctx, uint8_t of_version, uint8_t type, void *data, size_t len);
 
+const uint8_t *default_module_get_openflow_versions();
 #endif

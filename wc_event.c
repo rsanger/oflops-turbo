@@ -405,7 +405,7 @@ void *event_loop(void *param) {
     printf("event loop\n");
 
     // Most of the time we should be spending waiting for timeouts
-    while(state->ctx->should_end == 0) {
+    while(state->ctx->end_event == 0) {
         pthread_mutex_lock(&state->ctx->timers->lock);
         next_event = timer_get_next_event(state->ctx);
         while (next_event > 0) {

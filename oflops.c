@@ -51,7 +51,6 @@ int main(int argc, char * argv[])
     usage("Need to specify at least one module to run\n",NULL);
 
   oflops_log_init(ctx->log);
-  setup_control_channel(ctx);
 
   fprintf(stderr, "Running %d Test%s\n", ctx->n_tests, ctx->n_tests>1?"s":"");
 
@@ -62,27 +61,34 @@ int main(int argc, char * argv[])
     fprintf(stderr, "-----------------------------------------------\n");
     reset_context(ctx);
     ctx->curr_test = ctx->tests[i];
+    ctx->traffic_gen = &traffic_gen;
     param->ix_mod = i;
-    setup_test_module(ctx,i);
 
-    //start all the required threads of the program 
+    setup_test_module(ctx,i);
+    //start all the required threads of the program
 
     // the data receiving thread
     pthread_create(&thread, NULL, run_module, (void *)param);
+    // Now start up the control channel
+    setup_control_channel(ctx);
+    ctx->curr_test->start(ctx);
     // the data generating thread
     pthread_create(&traffic_gen, NULL, start_traffic_thread, (void *)param);
     // the timer thread.
     pthread_create(&event_thread, NULL, event_loop, (void *)param);
-    pthread_join(thread, NULL);
+
+    /* First wait for traffic generation to stop */
+    pthread_join(traffic_gen, NULL);
+    /* now stop timers etc */
+    ctx->end_event = 1;
     pthread_join(event_thread, NULL);
-
-
-    // for the case of pktgen traffic generation the thread remain unresponsive to other 
-    // termination method, and for that reason we use explicit signal termination.
-    if(ctx->trafficGen == PKTGEN)
-      pthread_cancel(traffic_gen); 
-    else 
-      pthread_join(traffic_gen, NULL); 
+    usleep(1000000);// Sleep for 1000ms to give time to flush the OF channel
+    if (ctx->fluid_control)
+        teardown_control_channel(ctx);
+    /* Now end the module */
+    usleep(1000000);// Sleep for 1000ms to give time to flush to the PCAP file
+    ctx->end_module = 1;
+    pthread_join(thread, NULL);
 
     //reading details for the data generation and capture process and output them to the log file.
     gettimeofday(&now, NULL);
@@ -116,6 +122,7 @@ int main(int argc, char * argv[])
     }
   }
 
+  free(param);
   oflops_log_close();
 
   fprintf(stderr, "-----------------------------------------------\n");

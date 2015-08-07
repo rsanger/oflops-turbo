@@ -27,18 +27,14 @@ oflops_context * oflops_default_context(void) {
 
   ctx->listen_port = OFP_TCP_PORT;	// listen on default port
 
-  ctx->listen_fd   = -1;
   ctx->snaplen = 112;
 
   ctx->n_channels=1;
   ctx->max_channels=10;
   ctx->channels = malloc_and_check(sizeof(struct channel_info)* ctx->max_channels);
 
-  ctx->control_outgoing = msgbuf_new(4096);       // dynamically sized
-
   ctx->snmp_channel_info = malloc_and_check(sizeof(struct snmp_channel));
-  ctx->snmp_channel_info->hostname = NULL;
-  ctx->snmp_channel_info->community_string = NULL;
+  memset(ctx->snmp_channel_info, 0 , sizeof(struct snmp_channel));
   ctx->channels[OFLOPS_CONTROL].raw_sock = -1;
 
   // initalize other channels later
@@ -49,6 +45,7 @@ oflops_context * oflops_default_context(void) {
 
   ctx->dump_controller = 0;
   ctx->cpuOID_count = 0;
+  ctx->fluid_control = NULL;
   return ctx;
 }
 

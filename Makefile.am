@@ -4,12 +4,12 @@ OFSRC=@openflowsrc@
 
 AM_CFLAGS=-Wall -I$(OFSRC)/include -I./netfpga-packet-generator-c-library/include/ -Wshadow \
 	`pkg-config --cflags libconfig`
-AM_LDFLAGS=-L$(OFSRC)/lib `pkg-config --libs libconfig` 
+AM_CXXFLAGS=-std=c++11 $(AM_CFLAGS)
+AM_LDFLAGS=-L$(OFSRC)/lib `pkg-config --libs libconfig`
 
-LDADD=-ldl -lpcap -lnetsnmp -loflops_test -lpthread  -lnf10_pktgen  -Lnetfpga-packet-generator-c-library/src \
-	 -lgsl  -lgslcblas
+LDADD=-ldl -lpcap -lnetsnmp -loflops_test -lpthread -lnf10_pktgen -Lnetfpga-packet-generator-c-library/src \
+	 -lgsl -lgslcblas -lfluid_base
 #LDADD+=-lefence
-
 EXTRA_DIST=./doc
 
 bin_PROGRAMS=oflops
@@ -26,7 +26,7 @@ liboflops_test_la_LIBADD=-lnetsnmp
 oflops_SOURCES= \
 	channel_info.h channel_info.c \
 	context.h context.c \
-	control.h control.c \
+	control.h control.cpp \
 	module_run.h  module_run.c \
 	module_default.h  module_default.c \
 	oflops.c oflops.h \
@@ -35,8 +35,8 @@ oflops_SOURCES= \
 	msg.c msg.h \
 	log.c log.h \
 	traffic_generator.c traffic_generator.h \
-	usage.h usage.c 
-oflops_LDFLAGS=-static -Wl,-E
+	usage.h usage.c
+oflops_LDFLAGS=-static -Wl,-E -Wl,--no-as-needed -Wl,-lrofl_common -Wl,--as-needed
 
 
 # lame; add "." before anything else to force dependencies

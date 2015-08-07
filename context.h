@@ -18,18 +18,27 @@ typedef struct oflops_context {
   int max_tests;	                        /**< maximum size of the tests array */
   struct test_module ** tests;            /**< module struct storage */
   struct test_module * curr_test;         /**< the test that we are currently handling */ 
-  char * controller_port;                 /**< which is the interface related t ocontrol */
-  int listen_fd;                          /**< file descriptor of the socket of the control channel */
   uint16_t listen_port;                   /**< the port on which the controller will be listening */
 
   int snaplen;                            /**< maximum capture size of packet */
 
-  int control_fd;                         /**<  */ 
-  struct msgbuf * control_outgoing;       /**< (Deprecated) a linked list to store temporarily injected packets */
+  uint8_t of_version;                     /**< The OF version of the current test */
+  void *fluid_control;                   /**< libfluid connection */
   int n_channels;                         /**< the number of channel currently used in the current context */
   int max_channels;                       /**< maximum number of channel supported by the channel array */
   struct channel_info * channels;	        /**< an array to store pointer to all channel_info object 
                                             of the control and channel objects */
+  uint8_t *of_versions;                   /**< A list of versions */
+  size_t nb_of_versions;                  /**< The number of elements in list ^ */
+
+  pthread_t *traffic_gen;                 /** We need this because we might have to call cancel on the thread */
+  volatile int end_traffic_generation;    /**< Stop the traffic generation - make sure we do this before we stop the module */
+  volatile int end_module;                /**< Stop the module */
+  volatile int end_event;                 /**< Stop the event thread */
+  /** Encrypted OpenFlow, if these are all set well to tls over the control channel */
+  const char *tls_cert;                   /**< The controllers cert 'ctl-cert.pem' */
+  const char *tls_privkey;                /**< The controllers private key 'ctl-privkey.pem' */
+  const char *tls_trustedcert;            /**< The trusted certificate of the switch's CA 'switchca/cacert.pem' */
 
   /** SNMP channel configuration
    */
@@ -46,7 +55,6 @@ typedef struct oflops_context {
   oid **cpuOID;                           /**< an array of cpu oid object */
   size_t *cpuOID_len;                     /**< an array of the length of the cpu oid */
   int cpuOID_count;                       /**< total number of cpu oid in the cpu_oid array */
-
 } oflops_context;
 
 /**

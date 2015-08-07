@@ -62,8 +62,8 @@ int msgbuf_write(struct msgbuf * mbuf, int sock, int len)
 	int send_len = mbuf->end - mbuf->start;
   int snd = 0, rc;
   fd_set fds;
-struct timeval timeout;
-char *b  = mbuf->buf[mbuf->start];
+  struct timeval timeout;
+  char *b  = mbuf->buf[mbuf->start];
 
 	if (len > 0)
 	{

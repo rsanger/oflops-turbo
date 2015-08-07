@@ -98,7 +98,7 @@ typedef struct test_module
      * @param ch    which channel this packet arrived on
 	 * @return 0    if success or -1 on error
      */
-	int (*handle_pcap_event)(struct oflops_context *ctx, struct pcap_event * pe, oflops_channel_name ch);
+    int (*handle_pcap_event)(struct oflops_context *ctx, struct pcap_event *pe, oflops_channel_name ch);
 
 	/** \brief Tell the test module that an openflow mesg came
 	 * 	over the control channel
@@ -120,7 +120,9 @@ typedef struct test_module
 	// FIXME: KK says this should be vector of all openflow messages
 	int (*of_event_echo_request)(struct oflops_context *ctx, const struct ofp_header * ofph);
 	int (*of_event_port_status)(struct oflops_context *ctx, const struct ofp_port_status * ofph);
-	int (*of_event_other)(struct oflops_context *ctx, const struct ofp_header * ofph);	
+    int (*of_event_other)(struct oflops_context *ctx, const struct ofp_header * ofph);
+
+    void (*of_message)(struct oflops_context *ctx, uint8_t of_version, uint8_t type, void *data, size_t len);
 
 	/** \brief Tell the test module that a timer went off
 	 *
@@ -151,6 +153,17 @@ typedef struct test_module
 	 * @return 0 if success and -1 if error
 	 */
 	int (*handle_traffic_generation)(struct oflops_context * ctx);
+
+    /** \brief A null terminated list of support OpenFlow versions
+     * The highest supported version will be used.
+     *
+     * DEFAULT: OF wire version 1 (i.e. OpenFlow 1.0)
+     *
+     * @return A pointer to a null terminated list of the OpenFlow
+     * versions supported as uint8_t's.
+     * Such as uint8_t versions[] = {0x1,0x4,0x0}
+     */
+    const uint8_t* (*get_openflow_versions)();
 	
 } test_module;
 
@@ -167,7 +180,7 @@ size_t oflops_send_of_mesgs(struct oflops_context *ctx, char * buf, size_t bufle
  * @param ctx	opaque pointer
  * @param hdr	pointer to an openflow header message (already in network byte order)
  */
-int oflops_send_of_mesg(struct oflops_context *ctx, struct ofp_header * hdr);
+size_t oflops_send_of_mesg(struct oflops_context *ctx, struct ofp_header * hdr);
 
 /** Send an raw message to the switch out a specified channel
  * @param ctx	opaque pointer

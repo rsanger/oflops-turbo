@@ -41,7 +41,7 @@ typedef struct channel_info {
  *  \param dev the name of the interface
  *  \return return 1 on success or 0 otherwise
  */
-int channel_info_init(struct channel_info * channel, char * dev);
+int channel_info_init(struct channel_info * channel, const char *dev);
 
 /**
  * fill in a strct channel_ifno, based on the informations contained in 

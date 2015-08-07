@@ -17,7 +17,7 @@
 #include "channel_info.h"
 #include "utils.h"
 
-int channel_info_init(struct channel_info * channel, char * dev)
+int channel_info_init(struct channel_info * channel, const char * dev)
 {
   struct ifreq ifr;
   int dumb;
@@ -185,7 +185,7 @@ void my_read_objid(char *in_oid, oid *out_oid, size_t *out_oid_len)
         in_oid[tmp] = '\0';
         tmp++;
         out_oid[*(out_oid_len)] = (oid)strtol(in_oid+p, NULL, 10);
-        if(oid_len == *out_oid_len) return 0;
+        if(oid_len == *out_oid_len) return;
         *(out_oid_len)+=1;
         p=tmp;
         if(p >= len)

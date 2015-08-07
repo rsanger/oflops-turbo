@@ -15,9 +15,11 @@
 #include <linux/if_arp.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
+#include <pthread.h>
 
 #include "test_module.h"
 #include "utils.h"
+#include "control.h"
 
 
 /***********************************************************************
@@ -26,9 +28,13 @@
 
 int oflops_end_test(struct oflops_context *ctx,int should_continue)
 {
-	ctx->should_end = 1;
-	ctx->should_continue = should_continue;
-	return 0;
+    // In the case of the kernel pktgen the thread remains unresponsive
+    // hanging on a write operation, we need to signal termination.
+    if(ctx->trafficGen == PKTGEN)
+        pthread_cancel(*ctx->traffic_gen);
+    ctx->end_traffic_generation = 1;
+    ctx->should_continue = should_continue;
+    return 0;
 }
 
 /**********************************************************************
@@ -96,39 +102,30 @@ int oflops_schedule_timer_event(struct oflops_context *ctx, struct timeval *tv, 
 	return wc_event_add(ctx->timers, NULL, arg, *tv);
 }
 
-
 /*****************************************************************************
- * hook for the test module to send an openflow mesgs across the control channel 
- * 	to the switch
- * 	FIXME: assert()'s that the message doesn't block -- if this is a problem
- * 	we need to implement some buffering and mod the select() call to open for
- * 	writing
+ * hook for the test module to send an openflow mesgs across the control channel
+ * to the switch
  **/
 size_t oflops_send_of_mesgs(struct oflops_context *ctx, char * buf, size_t buflen)
 {
-	msgbuf_push(ctx->control_outgoing, buf, buflen);
+    write_oflops_control(ctx, buf, buflen);
     return buflen;
 }
-/*****************************************************************************
- * hook for the test module to send an openflow mesg across the control channel 
- * 	to the switch
- * 	FIXME: assert()'s that the message doesn't block -- if this is a problem
- * 	we need to implement some buffering and mod the select() call to open for
- * 	writing
- **/
-int oflops_send_of_mesg(struct oflops_context *ctx, struct ofp_header * ofph)
-{
-	int len = ntohs(ofph->length);
 
-	msgbuf_push(ctx->control_outgoing, (void *) ofph, len);
-	return len;
+/*****************************************************************************
+ * hook for the test module to send an openflow mesg across the control channel
+ * to the switch
+ **/
+size_t oflops_send_of_mesg(struct oflops_context *ctx, struct ofp_header * ofph)
+{
+    int len = ntohs(ofph->length);
+    return oflops_send_of_mesgs(ctx, (char *) ofph, len);
 }
 
 /********************************************************************************
  * hook for the test module to send a raw message out a certain data channel
- * 	here, "raw" means with ethernet header
+ * here, "raw" means with ethernet header
  **/
-
 int oflops_send_raw_mesg(struct oflops_context *ctx, oflops_channel_name ch, void * msg, int len)
 {
 	struct sockaddr_ll socket_address;
@@ -153,7 +150,7 @@ int oflops_send_raw_mesg(struct oflops_context *ctx, oflops_channel_name ch, voi
 
   // FIXME: not dure if this correnct, as I am not sending anymore data
   // to the data channels from user space
-	ret = write( ctx->channels[ch].raw_sock, msg, len);
+    ret = write( ctx->channels[ch].raw_sock, msg, len);
 	//msgbuf_push(ctx->channels[ch].outgoing, msg, len);
 	//send_result = sendto(sock, msg, len, 0,  ***** old code
 	//		     (struct sockaddr*)&socket_address, sizeof(socket_address));

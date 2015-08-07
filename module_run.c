@@ -41,7 +41,6 @@ int setup_test_module(oflops_context *ctx, int ix_mod)
     setup_channel( ctx, mod, i);
 
   timer_init(ctx);
-  mod->start(ctx);
   return 1;
 }
 
@@ -108,7 +107,7 @@ static void test_module_loop(oflops_context *ctx, test_module *mod)
     len = sizeof(struct pollfd) * (ctx->n_channels + 1);
     poll_set = malloc_and_check(len);
 
-    while(!ctx->should_end )
+    while(!ctx->end_module)
     {
         n_fds=0;
         bzero(poll_set,len);
@@ -128,11 +127,6 @@ static void test_module_loop(oflops_context *ctx, test_module *mod)
             if( poll_set[n_fds].events != 0)
                 n_fds++;
         }
-        poll_set[n_fds].fd = ctx->control_fd;	// add the control channel at the end
-        poll_set[n_fds].events = POLLIN;
-        //if ( msgbuf_count_buffered(ctx->control_outgoing) > 0)
-        poll_set[n_fds].events |= POLLOUT;
-        n_fds++;
 
         //SNMP poll
         FD_ZERO(&fdset);
@@ -176,6 +170,7 @@ static void test_module_loop(oflops_context *ctx, test_module *mod)
             }
         }
     }
+    free(poll_set);
 }
 
 /*******************************************************
@@ -189,8 +184,7 @@ static void test_module_loop(oflops_context *ctx, test_module *mod)
 static void process_event(oflops_context *ctx, test_module * mod, struct pollfd *pfd)
 {
     int ch;
-    if(pfd->fd == ctx->control_fd)
-        return process_control_event(ctx, mod, pfd);
+
     // this is inefficient, but ok since there are really typically only ~8  cases
     for(ch=0; ch< ctx->n_channels; ch++)
         if (pfd->fd == ctx->channels[ch].pcap_fd) {
@@ -200,109 +194,6 @@ static void process_event(oflops_context *ctx, test_module * mod, struct pollfd 
     fprintf(stderr, "Event on unknown fd %d .. dying", pfd->fd);
     abort();
 }
-
-/***********************************************************************************************
- * static void process_control_event(oflops_context *ctx, test_module * mod, struct pollfd *fd);
- * 	if POLLIN is set, read an openflow message from the control channel
- * 	FIXME: handle a control channel reset here
- */
-static void process_control_event(oflops_context *ctx, test_module * mod, struct pollfd *pfd)
-{
-  char * neobuf;
-  static char * buf;
-  static int buflen   = -1;
-  static int bufstart =  0;       // begin of unprocessed data
-  static int bufend   =  0;       // end of unprocessed data
-  unsigned int msglen;
-  struct ofp_header * ofph;
-  int count;
-
-  if ( buflen == - 1 )
-    {
-      buflen = BUFLEN;
-      buf = malloc_and_check(BUFLEN);
-    }
-  if(bufend >= buflen )   // if we've filled up our buffer, resize it
-    {
-      buflen *=2 ;
-      buf = realloc_and_check(buf, buflen);
-    }
-
-  if(pfd->revents & POLLOUT)
-    {
-      if(msgbuf_write(ctx->control_outgoing,ctx->control_fd, 0) < 0)
-	perror_and_exit("control write()",1);
-    }
-
-  if(!(pfd->revents & POLLIN))		// nothing to read, return
-    return;
-  count = read(pfd->fd,&buf[bufend], buflen - bufend);
-  if(count < 0)
-    {
-      perror("process_control_event:read() ::");
-      return ;
-    }
-  if(count == 0)
-    {
-      fprintf(stderr, "Switch Control Connection reset! wtf!?!...exiting\n");
-      exit(0);
-    }
-  bufend += count;            // extend buf by amount read
-  count = bufend - bufstart;  // re-purpose count
-
-  while(count > 0 )
-    {
-      if(count <  sizeof(ofph))   // if we didn't get full openflow header
-	return;                 // come back later
-
-      ofph = (struct ofp_header * ) &buf[bufstart];
-      msglen = ntohs(ofph->length);
-      if( ( msglen > count) ||    // if we don't yet have the whole msg
-	  (buflen < (msglen + bufstart)))  // or our buffer is full
-	return;     // get the rest on the next pass
-
-      neobuf = malloc_and_check(msglen);
-      memcpy(neobuf, ofph, msglen);
-
-      switch(ofph->type)
-        {
-	case OFPT_PACKET_IN:
-	  mod->of_event_packet_in(ctx, (struct ofp_packet_in *)neobuf);
-	  break;
-	case OFPT_FLOW_EXPIRED:
-#ifdef HAVE_OFP_FLOW_EXPIRED
-	  mod->of_event_flow_removed(ctx, (struct ofp_flow_expired *)neobuf);
-#elif defined(HAVE_OFP_FLOW_REMOVED)
-	  mod->of_event_flow_removed(ctx, (struct ofp_flow_removed *)neobuf);
-#else
-#error "Unknown version of openflow"
-#endif
-	  break;
-	case OFPT_PORT_STATUS:
-	  mod->of_event_port_status(ctx, (struct ofp_port_status *)neobuf);
-	  break;
-	case OFPT_ECHO_REQUEST:
-	  mod->of_event_echo_request(ctx, (struct ofp_header *)neobuf);
-	  break;
-	default:
-	  if(ofph->type > OFPT_BARRIER_REPLY)   // FIXME: update for new openflow versions
-	    {
-	      fprintf(stderr, "%s:%zd :: Data buffer probably trashed : unknown openflow type %d\n",
-		      __FILE__, __LINE__, ofph->type);
-	      abort();
-	    }
-	  mod->of_event_other(ctx, (struct ofp_header * ) neobuf);
-	  break;
-        };
-      free(neobuf);
-      bufstart += msglen;
-      count = bufend - bufstart;  // repurpose count
-    }       // end while()
-
-  if ( bufstart >= bufend)        // if no outstanding bytes
-    bufstart = bufend = 0;      // reset our buffer
-}
-
 
 /**********************************************************************************************
  * static void process_pcap_event(oflops_context *ctx, test_module * mod, struct pollfd *fd, oflops_channel_name ch);
@@ -360,13 +251,13 @@ static void process_pcap_event(oflops_context *ctx, test_module * mod, struct po
         data = nf_cap_next(ctx->channels[ch].nf_cap, &pe->pcaphdr);
 
         if(data != NULL) {
-            memcpy(pe->data, data, pe->pcaphdr.caplen);
+            memcpy((char *) pe->data, data, pe->pcaphdr.caplen);
             mod->handle_pcap_event(ctx,pe, ch);
         } else {
             fprintf(stderr, "errorous packet received\n");
             return;
         }
-        free(pe->data);
+        free((char *)pe->data);
         free(pe);
     }
     return;
@@ -421,6 +312,8 @@ int load_test_module(oflops_context *ctx, char * mod_filename, char * initstr)
   symbol_fetch(handle_timer_event);
   symbol_fetch(handle_snmp_event);
   symbol_fetch(handle_traffic_generation);
+  symbol_fetch(of_message);
+  symbol_fetch(get_openflow_versions);
 #undef symbol_fetch
   if(ctx->n_tests >= ctx->max_tests)
     {

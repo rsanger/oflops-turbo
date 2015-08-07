@@ -209,7 +209,7 @@ innitialize_generator_packet(struct pkt_details *state, struct traf_gen_det *det
   state->data = (void *)xmalloc(det->pkt_size);
   state->data_len = det->pkt_size;
 
-  bzero((void *)state->data, state->data_len);
+  memset(state->data, 0, state->data_len);
   if(state->data_len < sizeof(struct ether_vlan_header) + sizeof(struct iphdr) + sizeof(struct tcphdr)) {
     printf("packet size is too small\n");
     return 0;
@@ -294,7 +294,7 @@ start_user_traffic_generator(oflops_context *ctx) {
   int num_generator = init_traffic_gen(ctx);
   int nr;
   struct timeval now = {0}, ts = {0};
-  while(ctx->should_end == 0) {
+  while(ctx->end_traffic_generation == 0) {
     nr = get_min_generator(num_generator);
     gettimeofday(&now, NULL);
 
@@ -386,7 +386,7 @@ start_nf_traffic_generator(oflops_context *ctx) {
     }
 
   nf_start(0);
-  while(!ctx->should_end) {
+  while(!ctx->end_traffic_generation) {
     pthread_yield();
     if(nf_gen_finished() && (data_to_send)) {
       nf_finish();

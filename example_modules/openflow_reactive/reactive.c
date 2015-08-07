@@ -140,11 +140,6 @@ start(struct oflops_context * ctx) {
   oflops_log(now, GENERIC_MSG, msg);
   oflops_log(now,GENERIC_MSG, cli_param);
 
-  //start openflow session with switch
-  make_ofp_hello(&b);
-  res = oflops_send_of_mesgs(ctx, b, sizeof(struct ofp_hello));
-  free(b);  
-  
   //send a message to clean up flow tables. 
   printf("cleaning up flow table...\n");
   res = make_ofp_flow_del(&b);

@@ -42,6 +42,7 @@ AC_SUBST([openflowsrc],$OPENFLOWSRC)
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_AWK
 AC_PROG_CPP

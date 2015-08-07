@@ -48,7 +48,7 @@ void * _realloc_and_check(void * ptr, size_t bytes, char * file, int lineno)
  * print errno and exit
  */
 
-void perror_and_exit(char * str, int exit_code)
+void perror_and_exit(const char * str, int exit_code)
 {
     perror(str);
     exit(exit_code);

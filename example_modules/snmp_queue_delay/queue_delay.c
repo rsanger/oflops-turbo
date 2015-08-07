@@ -142,12 +142,12 @@ int init(struct oflops_context *ctx, char * config_str) {
   } 
 
   //calculate maximum number of packet I may receive
-  printf("%llu %u %llu %llu %llu\n", duration, pkt_size, byte_to_bits, sec_to_usec, 
+  printf("%"PRIu64" %u %"PRIu64" %"PRIu64" %"PRIu64"\n", duration, pkt_size, byte_to_bits, sec_to_usec,
 	 mbits_to_bits);
   max_pkt_count = duration*1000000000 / 
     ((pkt_size * byte_to_bits * sec_to_usec) / (mbits_to_bits));
   delay = (double *)xmalloc(max_pkt_count * sizeof(double));
-    printf("delay_count : %llu\n", max_pkt_count);
+    printf("delay_count : %"PRIu64"\n", max_pkt_count);
 
   return 0;
 }
@@ -169,13 +169,14 @@ int start(struct oflops_context * ctx) {
 
 
   make_ofp_hello(&b);
-  ret = write(ctx->control_fd, b, sizeof(struct ofp_hello));
-  free(b);  
+
+  ret = oflops_send_of_mesgs(ctx, b, sizeof(struct ofp_hello));
+  free(b);
 
   // clean up flow table
   printf("cleaning up flow table...\n");
   res = make_ofp_flow_del(&b);
-  ret = write(ctx->control_fd, b, res);
+  ret = oflops_send_of_mesgs(ctx, b, res);
   free(b);
 
   //Send a singe ruke to route the traffic we will generate
@@ -192,7 +193,7 @@ int start(struct oflops_context * ctx) {
   fl->tp_src = htons(8080);            
   fl->tp_dst = htons(8080);  
   len = make_ofp_flow_add(&b, fl, OFPP_IN_PORT, 0, OFP_FLOW_PERMANENT);
-  write(ctx->control_fd, b, len);
+  oflops_send_of_mesgs(ctx, b, len);
   free(b);
 
   free(fl);
@@ -223,7 +224,7 @@ handle_pcap_event(struct oflops_context *ctx, struct pcap_event * pe, oflops_cha
   
   if(ch == OFLOPS_DATA1) {
     if(delay_count >= max_pkt_count) {
-      printf("received packet is more than %llu\n", max_pkt_count);
+      printf("received packet is more than %"PRIu64"\n", max_pkt_count);
       return 0;
     }
     pktgen = extract_pktgen_pkt(ctx, ch, pe->data, pe->pcaphdr.caplen, &fl);
@@ -305,7 +306,7 @@ handle_traffic_generation (oflops_context *ctx) {
     else 
       det.pkt_count = (uint64_t)(duration*1000000000);
     //print sending probe details
-    fprintf(stderr, "Sending data interval : %u nsec (pkt_size: %u bytes, rate: %u Mbits/sec %llu packets)\n", 
+    fprintf(stderr, "Sending data interval : %u nsec (pkt_size: %u bytes, rate: %u Mbits/sec %"PRIu64" packets)\n",
 	    (uint32_t)data_snd_interval, (uint32_t)pkt_size, (uint32_t)datarate[i],  det.pkt_count);
 
     //start packet generator

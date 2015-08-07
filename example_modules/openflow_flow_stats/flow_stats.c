@@ -385,8 +385,8 @@ int start(struct oflops_context * ctx)
   void *b;
 
   //make filedescriptor blocking
-  int saved_flags = fcntl(ctx->control_fd, F_GETFL);
-  fcntl(ctx->control_fd, F_SETFL, saved_flags & ~O_NONBLOCK);
+  /*int saved_flags = fcntl(ctx->control_fd, F_GETFL);
+  fcntl(ctx->control_fd, F_SETFL, saved_flags & ~O_NONBLOCK);*/
 
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, data_mac);
   get_mac_address(ctx->channels[OFLOPS_DATA2].dev, probe_mac);
