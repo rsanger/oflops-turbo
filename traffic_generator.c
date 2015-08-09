@@ -176,8 +176,6 @@ send_pkt(struct oflops_context *ctx, int ix, struct timeval now) {
   struct pkt_details *state = generator_state[ix];
 
   state->pktgen->seq_num = htonl(state->seq_num++);
-  state->pktgen->time.tv_sec = htonl(now.tv_sec);
-  state->pktgen->time.tv_usec = htonl(now.tv_usec);
   state->pktgen->tv_sec = htonl(now.tv_sec);
   state->pktgen->tv_usec = htonl(now.tv_usec);
   oflops_send_raw_mesg(ctx, state->traffic_gen, state->data, state->data_len);
@@ -261,7 +259,7 @@ innitialize_generator_packet(struct pkt_details *state, struct traf_gen_det *det
   state->udp->dest = htons(det->udp_dst_port);
   state->udp->len = l3_size;
 
-  state->pktgen->magic = 0xbe9be955;
+  state->pktgen->magic = htonl(0xbe9be955);
 
   return 1;
 }

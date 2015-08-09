@@ -729,7 +729,7 @@ of_event_other(struct oflops_context *ctx, const struct ofp_header * ofph) {
     fprintf(stderr, "%s\n", msg);
   } else if (ofph->type == OFPT_BARRIER_REPLY) {
     oflops_gettimeofday(ctx, &now);
-    snprintf(msg, 1024, "BARRIER_DELAY:%d", time_diff(&flow_mod_timestamp, &now));
+    snprintf(msg, sizeof(msg), "BARRIER_DELAY:%d", time_diff(&flow_mod_timestamp, &now));
     oflops_log(now, GENERIC_MSG, msg);
     printf("BARRIER_DELAY:%d\n",  time_diff(&flow_mod_timestamp, &now));
   }

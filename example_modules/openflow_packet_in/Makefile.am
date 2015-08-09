@@ -1,7 +1,7 @@
 TOP=../..
 OFSRC=@openflowsrc@
 
-AM_CXXFLAGS=-Wall -I$(OFSRC)/include -I$(TOP) -Wshadow  -I$(TOP)/netfpga-packet-generator-c-library/include
+AM_CXXFLAGS=-std=c++11 -Wall -I$(OFSRC)/include -I$(TOP) -Wshadow  -I$(TOP)/netfpga-packet-generator-c-library/include
 AM_LDFLAGS=-L$(TOP) -lm
 
 LDADD=-ldl -lpcap -loflops_test -lrofl_common

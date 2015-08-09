@@ -67,7 +67,7 @@ public:
 static int check_of_version_allowed(oflops_context *ctx, uint8_t v) {
     if (ctx->nb_of_versions == 0)
         return 1;
-    for (int i = 0; i < ctx->nb_of_versions; i++) {
+    for (size_t i = 0; i < ctx->nb_of_versions; i++) {
         if (v == ctx->of_versions[i])
             return 1;
     }

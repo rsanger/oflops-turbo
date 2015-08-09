@@ -40,7 +40,7 @@ oflops_log_init(const char *filename) {
  * \param details the string to be appented on the logging file 
  */
 void 
-oflops_log(struct timeval ts, int type, char *details) {
+oflops_log(struct timeval ts, int type, const char *details) {
   if (!logger)
     return;
 

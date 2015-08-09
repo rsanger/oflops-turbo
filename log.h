@@ -28,7 +28,7 @@ enum log_types {
 };
 
 void oflops_log_init(const char *filename);
-void oflops_log(struct timeval, int type, char *details);
+void oflops_log(struct timeval, int type, const char *details);
 void oflops_log_close();
 
 #endif

@@ -1,5 +1,6 @@
 #include <rofl_common.h>
 #include <rofl/common/crofbase.h>
+#include <rofl/common/openflow/messages/cofmsg.h>
 
 extern "C" {
 #include <stdio.h>
@@ -31,6 +32,7 @@ extern "C" {
 #define BYESTR "bye bye"
 #define SNMPGET "snmp get"
 #define SND_PKT "send packet"
+#define FORCE_START "force start"
 
 /**
  * packet size limits
@@ -38,25 +40,23 @@ extern "C" {
 #define MIN_PKT_SIZE 64
 #define MAX_PKT_SIZE 1500
 
+#undef OFP_VERSION
+
 // calculated sending time interval (measured in usec). 
 uint64_t probe_snd_interval;
 
-
-// Number of flows to send.
-int flows = 100;
-char *cli_param;
-const char *network = "192.168.3.0";
-int pkt_size = 1500;
-int finished = 0;
-uint32_t pkt_in_count = 0;
-int print = 0;
+static char *cli_param;
+static int pkt_size = 1500;
+static int print = 0;
+static int test_duration = 60;
+static volatile int started = 0;
 
 // Some constants to help me with conversions
-const uint64_t sec_to_usec = 1000000;
-const uint64_t byte_to_bits = 8, mbits_to_bits = 1024*1024;
+static const uint64_t sec_to_usec = 1000000;
+static const uint64_t byte_to_bits = 8, mbits_to_bits = 1024*1024;
 
 //local mac
-char local_mac[] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+static char local_mac[] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
 
 struct entry {
   struct timeval snd,rcv;
@@ -65,7 +65,7 @@ struct entry {
 };
 
 TAILQ_HEAD(tailhead, entry) head;
-int rcv_pkt_count = 0;		    
+static int rcv_pkt_count = 0;
 
 static uint8_t *b = NULL;
 struct iphdr *ip;
@@ -93,6 +93,7 @@ int generate_pkt_out(struct oflops_context * ctx, struct timeval *now);
  *    - print: This parameter defines if the measurement module prints
  *   extended per packet measurement information. The information is printed in log
  *   file.
+ *   - duration: The length of the test in seconds, default 60 seconds
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -111,7 +112,7 @@ const char * name()
 
 
 const uint8_t *get_openflow_versions() {
-    static uint8_t of_versions[] = {0x01, 0x04};
+    static uint8_t of_versions[] = {0x01, 0x04, 0x0};
     return of_versions;
 }
 
@@ -128,6 +129,8 @@ int start(struct oflops_context * ctx) {
 
   //init measurement queue
   TAILQ_INIT(&head); 
+
+  started = 0;
 
   snprintf(msg, 1024,  "Intializing module %s", name());
 
@@ -162,10 +165,7 @@ int start(struct oflops_context * ctx) {
   add_time(&now, 1, 0);
   oflops_schedule_timer_event(ctx,&now, const_cast<char *>(SNMPGET));
 
-  //Schedule end
-  gettimeofday(&now, NULL);
-  add_time(&now, 20, 0);
-  oflops_schedule_timer_event(ctx,&now, const_cast<char *>(BYESTR));
+  oflops_schedule_timer_event(ctx,&now, const_cast<char *>(FORCE_START));
 
   return 0;
 }
@@ -201,6 +201,20 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
     gettimeofday(&now, NULL);
     add_time(&now, probe_snd_interval/sec_to_usec, probe_snd_interval%sec_to_usec);
     oflops_schedule_timer_event(ctx,&now, const_cast<char *>(SND_PKT));
+  } else if (!strcmp(str,FORCE_START)) {
+    if (started == false) {
+      struct timer_event new_te;
+      gettimeofday(&now, NULL);
+      oflops_log(now, GENERIC_MSG, "Warning barrier message not received within 1 sec. Starting packet-outs anyway");
+      started = true;
+
+      new_te.arg = const_cast<char *>(SND_PKT);
+      started = 1;
+      handle_timer_event(ctx, &new_te);
+      //Schedule end
+      add_time(&now, test_duration, 0);
+      oflops_schedule_timer_event(ctx,&now, const_cast<char *>(BYESTR));
+    }
   } else
     fprintf(stderr, "Unknown timer event: %s", str);
   return 0;
@@ -211,7 +225,7 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
  */
 int 
 destroy(oflops_context *ctx) {
-  struct entry *np;
+  struct entry *np, *lp;
   size_t i;
   double mean, median, sd;
   double loss;
@@ -223,17 +237,18 @@ destroy(oflops_context *ctx) {
 
   data = (double *) xmalloc(rcv_pkt_count*sizeof(double));
   i=0;
-  for (np = head.tqh_first; np != NULL; np = np->entries.tqe_next) {
+  for (np = head.tqh_first; np != NULL;) {
     data[i++] = (double)time_diff(&np->snd, &np->rcv);
     if(print) {
       snprintf(msg, 1024, "%lu.%06lu:%lu.%06lu:%d:%d",
           np->snd.tv_sec, np->snd.tv_usec,
           np->rcv.tv_sec, np->rcv.tv_usec,
-          time_diff(&np->snd, &np->rcv), 
-          np->id); 
+          np->id, time_diff(&np->snd, &np->rcv));
       oflops_log(now, OFPT_PACKET_IN_MSG, msg);
     }
-    free(np);
+    lp = np;
+    np = np->entries.tqe_next;
+    free(lp);
   }
 
   if(i > 0) {
@@ -251,6 +266,7 @@ destroy(oflops_context *ctx) {
            loss, i);
     oflops_log(now, GENERIC_MSG, msg);
   }
+  free(data);
   return 0;
 }
 
@@ -315,7 +331,6 @@ int init(struct oflops_context *ctx, char * config_str) {
   struct timeval now;
 
   //init counters
-  finished = 0;
   gettimeofday(&now, NULL);
   cli_param = strdup(config_str);
 
@@ -328,12 +343,13 @@ int init(struct oflops_context *ctx, char * config_str) {
 
     if((pos == NULL)) {
       if (*param != '\0') {
-        pos = param + strlen(param) + 1;
+        pos = param + strlen(param);
       } else
         break;
+    } else {
+        *pos='\0';
+        pos++;
     }
-    *pos='\0';
-    pos++;
     value = index(param,'=');
     *value = '\0';
     value++;
@@ -344,24 +360,25 @@ int init(struct oflops_context *ctx, char * config_str) {
         pkt_size = strtol(value, NULL, 0);
         if((pkt_size < MIN_PKT_SIZE) && (pkt_size > MAX_PKT_SIZE))
           perror_and_exit("Invalid packet size value", 1);
-      }  else 
-        if(strcmp(param, "probe_snd_interval") == 0) {
-          //parse int to get measurement probe rate
-          probe_snd_interval = strtol(value, NULL, 0);
-          if( probe_snd_interval  < 500) 
-            perror_and_exit("Invalid probe rate param(larger than 100 microsec", 1);
-        } else 
-          if(strcmp(param, "flows") == 0) {
-            //parse int to get pkt size
-            flows = strtol(value, NULL, 0);
-            if(flows <= 0)  
-              perror_and_exit("Invalid flow number", 1);
-          } else if(strcmp(param, "print") == 0) {
-            //parse int to get pkt size
-            print = strtol(value, NULL, 0);
-          } else 
-            fprintf(stderr, "Invalid parameter:%s\n", param);
-          param = pos;
+      }
+      else if(strcmp(param, "probe_snd_interval") == 0) {
+        //parse int to get measurement probe rate
+        probe_snd_interval = strtol(value, NULL, 0);
+        if( probe_snd_interval  < 500)
+          perror_and_exit("Invalid probe rate param(larger than 100 microsec", 1);
+      }
+      else if(strcmp(param, "duration") == 0) {
+        test_duration = strtol(value, NULL, 0);
+        if (test_duration <= 0)
+          perror_and_exit("Invalid duration, value must be larger than 0", 1);
+      }
+      else if(strcmp(param, "print") == 0) {
+        //parse int to get pkt size
+        print = strtol(value, NULL, 0);
+      } else {
+        fprintf(stderr, "Invalid parameter:%s\n", param);
+      }
+      param = pos;
     }
   } 
 
@@ -380,7 +397,6 @@ generate_pkt_out(struct oflops_context * ctx,struct timeval *now) {
     struct udphdr *udp;
     uint8_t buf[5000];
 
-    //send a message to clean up flow tables.
     rofl::openflow::cofmsg_packet_out pkt_out(ctx->of_version);
     rofl::cpacket &pkt = pkt_out.set_packet();
 
@@ -497,10 +513,29 @@ handle_traffic_generation (oflops_context *ctx) {
 }
 }
 
+#define OF_MESSAGE(version, type) \
+    (version == rofl::openflow10::OFP_VERSION ? rofl::openflow10::OFPT_ ##type : \
+    version == rofl::openflow12::OFP_VERSION ? rofl::openflow12::OFPT_ ##type : \
+    version == rofl::openflow13::OFP_VERSION ? rofl::openflow13::OFPT_ ##type : \
+                                               (assert(0), 0) \
+    )
+
 extern "C" void of_message (struct oflops_context *ctx, uint8_t of_version, uint8_t type, void *data, size_t len) {
-    if (type == rofl::openflow::OFPT_BARRIER_REPLY) {
+    if (0 && type == OF_MESSAGE(of_version, BARRIER_REPLY)) {
+        struct timeval now;
         struct timer_event te;
         te.arg = const_cast<char *>(SND_PKT);
+        started = 1;
         handle_timer_event(ctx, &te);
+        //Schedule end
+        gettimeofday(&now, NULL);
+        add_time(&now, test_duration, 0);
+        oflops_schedule_timer_event(ctx,&now, const_cast<char *>(BYESTR));
+    } else {
+        struct timeval now;
+        char buf[200];
+        oflops_gettimeofday(ctx, &now);
+        snprintf(buf, sizeof(buf), "Got unexpected OF message %d %s", (int) type, rofl::openflow::cofmsg::type2desc(of_version,type));
+        oflops_log(now, GENERIC_MSG, buf);
     }
 }

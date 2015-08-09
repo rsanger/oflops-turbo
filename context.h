@@ -23,7 +23,7 @@ typedef struct oflops_context {
   int snaplen;                            /**< maximum capture size of packet */
 
   uint8_t of_version;                     /**< The OF version of the current test */
-  void *fluid_control;                   /**< libfluid connection */
+  void *fluid_control;                    /**< libfluid connection */
   int n_channels;                         /**< the number of channel currently used in the current context */
   int max_channels;                       /**< maximum number of channel supported by the channel array */
   struct channel_info * channels;	        /**< an array to store pointer to all channel_info object 
