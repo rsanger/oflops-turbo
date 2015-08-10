@@ -410,8 +410,13 @@ void *event_loop(void *param) {
         next_event = timer_get_next_event(state->ctx);
         while (next_event > 0) {
             struct timespec ts;
-            ts.tv_sec = next_event / 1000000;
-            ts.tv_nsec = (next_event % 1000000) * 1000;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_sec += next_event / 1000000;
+            ts.tv_nsec += (next_event % 1000000) * 1000;
+            if (ts.tv_nsec >= 1000000000) {
+                ts.tv_sec++;
+                ts.tv_nsec -= 1000000000;
+            }
             pthread_cond_timedwait(&state->ctx->timers->cond, &state->ctx->timers->lock, &ts);
             next_event = timer_get_next_event(state->ctx);
         }
