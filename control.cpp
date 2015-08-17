@@ -9,6 +9,9 @@ extern "C" {
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "event2/event.h"
+#include <poll.h>
+#include <netinet/tcp.h>
 }
 #include <condition_variable>
 #include <iostream>
@@ -62,6 +65,15 @@ public:
         }
         wait_connected.notify_all();
     }
+    bool has_backlog(){
+        fluid_base::OFConnection *conn = get_ofconnection(0);
+        struct pollfd fds = {0};
+        fds.fd = conn->get_fd();
+        fds.events = POLLOUT;
+        poll(&fds, 1, 0);
+
+        return fds.revents&POLLOUT ? false : true;
+    }
 };
 
 static int check_of_version_allowed(oflops_context *ctx, uint8_t v) {
@@ -80,6 +92,7 @@ extern "C" int setup_control_channel(oflops_context *ctx) {
     struct sockaddr_in *sinptr;
     struct ifreq ifr;
     OFServerSettings options;
+    int one = 1;
 
     fd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -130,6 +143,11 @@ extern "C" int setup_control_channel(oflops_context *ctx) {
         std::cerr<<"Connection failed, likely failed negotiation."<<std::endl;
         abort();
     }
+    fd =ser->get_ofconnection(0)->get_fd();
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) < 0) {
+            std::cerr<<"Failed to disable nagle!!"<<std::endl;
+    }
+
     std::cout<<"Ready to generate!!"<<std::endl;
     ctx->of_version = ser->get_ofconnection(0) ? ser->get_ofconnection(0)->get_version() : 0;
     return 0;
@@ -150,4 +168,9 @@ extern "C" int write_oflops_control(oflops_context *ctx, void* data, size_t len)
     }
     test->get_ofconnection(0)->send(data, len);
     return 0;
+}
+
+extern "C" int has_backlog(oflops_context *ctx) {
+    BasicTestServer *test = static_cast<BasicTestServer *>(ctx->fluid_control);
+    return test->has_backlog();
 }
