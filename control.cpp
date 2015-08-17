@@ -124,6 +124,7 @@ extern "C" int setup_control_channel(oflops_context *ctx) {
         }
         std::cout<<" to openflow handshake"<<std::endl;
     }
+    options.echo_interval(10000);
 
     auto ser = new BasicTestServer(address, ctx->listen_port, 1, use_tls, options);
     ctx->fluid_control = static_cast<void *>(ser);
