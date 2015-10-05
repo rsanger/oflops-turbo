@@ -142,6 +142,11 @@ int start(struct oflops_context * ctx) {
   snprintf(msg, sizeof(msg),  "OpenFlow version %d in use", (int)ctx->of_version);
   oflops_log(now, GENERIC_MSG, msg);
   std::cout<<msg<<std::endl;
+  if (ctx->n_channels < 2) {
+      std::cerr<<"Module requires at least 1 data channel"<<std::endl;
+      oflops_log(now, GENERIC_MSG, "Module requires at least 1 data channel");
+      assert(ctx->n_channels >= 2);
+  }
 
   get_mac_address(ctx->channels[OFLOPS_DATA1].dev, local_mac);
 
