@@ -26,6 +26,8 @@ struct pkt_details {
   struct tcphdr *tcp;
   void *data;
   int data_len;
+  uint32_t ip_dest_min; /* Network byte order */
+  uint32_t ip_dest_max; /* Network byte order */
   struct pktgen_hdr *pktgen;
 };
 
@@ -174,10 +176,21 @@ static inline int get_min_generator(int num_generator) {
 int
 send_pkt(struct oflops_context *ctx, int ix, struct timeval now) {
   struct pkt_details *state = generator_state[ix];
+  struct traf_gen_det *det = ctx->channels[ix].det;
 
+  // Update the timestamp
   state->pktgen->seq_num = htonl(state->seq_num++);
   state->pktgen->tv_sec = htonl(now.tv_sec);
   state->pktgen->tv_usec = htonl(now.tv_usec);
+
+  // Update flow, number i.e. update the ipv4 dest
+  if (state->ip_dest_min != state->ip_dest_max) {
+      if (state->ip->daddr == state->ip_dest_max)
+        state->ip->daddr = state->ip_dest_min;
+      else
+        state->ip->daddr = htonl(ntohl(state->ip->daddr)+1);
+  }
+
   oflops_send_raw_mesg(ctx, state->traffic_gen, state->data, state->data_len);
   add_timespec(&state->timestamp, 0, ctx->channels[state->traffic_gen].det->delay);
   return 1;
@@ -252,6 +265,8 @@ innitialize_generator_packet(struct pkt_details *state, struct traf_gen_det *det
   state->ip->protocol = IPPROTO_UDP; //udp protocol
   state->ip->saddr = inet_addr(det->src_ip);
   state->ip->daddr = inet_addr(det->dst_ip_min); //test.nw_dst;
+  state->ip_dest_min = inet_addr(det->dst_ip_min);
+  state->ip_dest_max = inet_addr(det->dst_ip_max);
 
   state->ip->check=ip_sum_calc(20, (void *)state->ip);
 

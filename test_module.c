@@ -128,39 +128,16 @@ size_t oflops_send_of_mesg(struct oflops_context *ctx, struct ofp_header * ofph)
  **/
 int oflops_send_raw_mesg(struct oflops_context *ctx, oflops_channel_name ch, void * msg, int len)
 {
-	struct sockaddr_ll socket_address;
 	int ret;
 	oflops_get_channel_raw_fd(ctx,ch);  // ensure that a raw sock is allocated
 
-	ctx->channels[ch].packet_len = len;
-
-	bzero(&socket_address,sizeof(socket_address));
-	socket_address.sll_family   = PF_PACKET;
-	socket_address.sll_protocol = htons(ETH_P_ALL);
-	/*index of the network device
-	 *          * see full code later how to retrieve it*/
-	socket_address.sll_ifindex  = ctx->channels[ch].ifindex;
-	/********************* do we need any of this? */
-	socket_address.sll_hatype   = ARPHRD_ETHER; //don't need?
-	socket_address.sll_halen    = ETH_ALEN;
-	socket_address.sll_pkttype  = PACKET_OTHERHOST;
-	//*/
-	
-	/*queue the packet*/
-
-  // FIXME: not dure if this correnct, as I am not sending anymore data
-  // to the data channels from user space
     ret = write( ctx->channels[ch].raw_sock, msg, len);
-	//msgbuf_push(ctx->channels[ch].outgoing, msg, len);
-	//send_result = sendto(sock, msg, len, 0,  ***** old code
-	//		     (struct sockaddr*)&socket_address, sizeof(socket_address));
-	//	sendto(ctx->channels[ch].raw_sock, msg, len, 0, 
-	//(struct sockaddr*)&socket_address, sizeof(socket_address));
-        if ( ret < 0 && errno != ENOBUFS ) {
-	  fprintf(stderr, "sending of data failed\n");
-        }
-	
-	return len;;
+
+    if ( ret < 0 && errno != ENOBUFS ) {
+        fprintf(stderr, "sending of data failed\n");
+    }
+
+    return len;
 }
 
 /**************************************************************************************
