@@ -560,7 +560,7 @@ int init(struct oflops_context *ctx, char * config_str) {
         //parse int to get measurement probe rate
         probe_snd_interval = strtol(value, NULL, 0);
         if(( probe_snd_interval <= 0))
-          perror_and_exit("Invalid probe rate param(Value larger than 0)", 1);
+          perror_and_exit("Invalid probe rate param(Value must be larger than 0)", 1);
       }
       else if(strcmp(param, "print") == 0) {
         print = value;

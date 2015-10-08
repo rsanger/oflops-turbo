@@ -375,8 +375,8 @@ int init(struct oflops_context *ctx, char * config_str) {
       else if(strcmp(param, "probe_snd_interval") == 0) {
         //parse int to get measurement probe rate
         probe_snd_interval = strtol(value, NULL, 0);
-        if( probe_snd_interval  < 500)
-          perror_and_exit("Invalid probe rate param(larger than 100 microsec", 1);
+        if( probe_snd_interval <= 0)
+          perror_and_exit("Invalid probe rate param(Value must be larger than 0)", 1);
       }
       else if(strcmp(param, "duration") == 0) {
         test_duration = strtol(value, NULL, 0);
@@ -390,7 +390,7 @@ int init(struct oflops_context *ctx, char * config_str) {
       }
       param = pos;
     }
-  } 
+  }
 
   //calculate sendind interval
   fprintf(stderr, "Sending probe interval : %u usec (pkt_size: %u bytes)\n", 
