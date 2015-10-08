@@ -172,7 +172,7 @@ int start(struct oflops_context * ctx) {
       rofl::caddress_in4 address = rofl::caddress_in4("200.0.0.0");
       rofl::openflow::cofmsg_flow_mod send_to_controller(ctx->of_version, 2);
 
-      address.set_addr_hbo(address.get_addr_hbo() + (i *255));
+      address.set_addr_hbo(address.get_addr_hbo() + (i *256));
 
       fm = &send_to_controller.set_flowmod();
       fm->set_command(rofl::openflow::OFPFC_ADD);
@@ -181,7 +181,10 @@ int start(struct oflops_context * ctx) {
       fm->set_match().set_in_port(ctx->channels[OFLOPS_DATA1].of_port);
       fm->set_match().set_ip_proto(17);
       fm->set_match().set_eth_type(0x0800);
-      fm->set_match().set_ipv4_dst(address, mask);
+      if (ctx->of_version == rofl::openflow10::OFP_VERSION)
+        fm->set_match().set_nw_dst(address, mask);
+      else
+        fm->set_match().set_ipv4_dst(address, mask);
       fm->set_cookie(bad_match_cookie++);
       rofl::openflow::cofactions &actions = ctx->of_version <= rofl::openflow10::OFP_VERSION?
                   fm->set_actions():
