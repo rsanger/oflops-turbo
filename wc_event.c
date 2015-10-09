@@ -408,14 +408,19 @@ void *event_loop(void *param) {
     while(state->ctx->end_event == 0) {
         pthread_mutex_lock(&state->ctx->timers->lock);
         next_event = timer_get_next_event(state->ctx);
-        while (next_event > 0) {
+        while (next_event > 0 && state->ctx->end_event == 0) {
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
-            ts.tv_sec += next_event / 1000000;
-            ts.tv_nsec += (next_event % 1000000) * 1000;
-            if (ts.tv_nsec >= 1000000000) {
+            // Break every second to check end_event
+            if (next_event / 1000000 > 0) {
                 ts.tv_sec++;
-                ts.tv_nsec -= 1000000000;
+            } else {
+                ts.tv_sec += next_event / 1000000;
+                ts.tv_nsec += (next_event % 1000000) * 1000;
+                if (ts.tv_nsec >= 1000000000) {
+                    ts.tv_sec++;
+                    ts.tv_nsec -= 1000000000;
+                }
             }
             pthread_cond_timedwait(&state->ctx->timers->cond, &state->ctx->timers->lock, &ts);
             next_event = timer_get_next_event(state->ctx);
@@ -424,7 +429,7 @@ void *event_loop(void *param) {
         if(next_event <= 0 ) {
             timer_run_next_event(state->ctx);
         }
-    };
+    }
 
     return NULL;
 }

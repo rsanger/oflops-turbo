@@ -36,6 +36,7 @@ oflops_SOURCES= \
 	log.c log.h \
 	traffic_generator.c traffic_generator.h \
 	usage.h usage.c
+oflops_DEPENDENCIES = liboflops_test.la
 oflops_LDFLAGS=-static -Wl,-E
 
 # lame; add "." before anything else to force dependencies
