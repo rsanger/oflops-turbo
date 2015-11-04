@@ -176,7 +176,6 @@ static inline int get_min_generator(int num_generator) {
 int
 send_pkt(struct oflops_context *ctx, int ix, struct timeval now) {
   struct pkt_details *state = generator_state[ix];
-  struct traf_gen_det *det = ctx->channels[ix].det;
 
   // Update the timestamp
   state->pktgen->seq_num = htonl(state->seq_num++);
@@ -189,6 +188,8 @@ send_pkt(struct oflops_context *ctx, int ix, struct timeval now) {
         state->ip->daddr = state->ip_dest_min;
       else
         state->ip->daddr = htonl(ntohl(state->ip->daddr)+1);
+      state->ip->check = 0;
+      state->ip->check = htons(ip_sum_calc(20, (uint16_t *)state->ip));
   }
 
   oflops_send_raw_mesg(ctx, state->traffic_gen, state->data, state->data_len);
@@ -268,7 +269,7 @@ innitialize_generator_packet(struct pkt_details *state, struct traf_gen_det *det
   state->ip_dest_min = inet_addr(det->dst_ip_min);
   state->ip_dest_max = inet_addr(det->dst_ip_max);
 
-  state->ip->check=ip_sum_calc(20, (void *)state->ip);
+  state->ip->check = htons(ip_sum_calc(20, (void *)state->ip));
 
   state->udp->source = htons(det->udp_src_port);
   state->udp->dest = htons(det->udp_dst_port);

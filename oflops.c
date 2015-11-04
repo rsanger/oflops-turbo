@@ -36,7 +36,7 @@ int main(int argc, char * argv[])
   int i, j;
   struct pcap_stat ps;
   pthread_t thread, event_thread, traffic_gen;
-  struct run_module_param *param =  malloc_and_check(sizeof(struct run_module_param));
+  struct run_module_param *param = malloc_and_check(sizeof(struct run_module_param));
   char msg[1024];
   struct timeval now;
   struct nf_cap_stats stat;

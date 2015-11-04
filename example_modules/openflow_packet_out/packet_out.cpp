@@ -455,7 +455,8 @@ generate_pkt_out(struct oflops_context * ctx,struct timeval *now) {
   pktgen->tv_sec = htonl(now->tv_sec);
   pktgen->tv_usec = htonl(now->tv_usec);
   pktgen->seq_num = htonl(pkt_counter++);
-  ip->check = htons(0x87c5);
+  ip->check = 0;
+  ip->check = htons(ip_sum_calc(sizeof(*ip), (uint16_t *) ip));
   pkt.assign(b, pkt_size);
   pkt_out.set_in_port(rofl::openflow::OFPP_CONTROLLER);
   pkt_out.set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
