@@ -55,6 +55,7 @@ static int test_duration = 60;
 static volatile int started = 0;
 static std::string print;
 static std::ofstream csv_output;
+static bool check_backlog = false;
 static long double calculated_mean;
 
 // Some constants to help me with conversions
@@ -72,7 +73,7 @@ struct entry {
 
 TAILQ_HEAD(tailhead, entry) head;
 static uint32_t rcv_pkt_count;
-static int pkt_counter;
+static int pkt_counter, sent_pkt_counter;
 
 int generate_pkt_out(struct oflops_context * ctx, struct timeval *now);
 
@@ -92,6 +93,8 @@ int generate_pkt_out(struct oflops_context * ctx, struct timeval *now);
  *    extended per packet measurement information to the given csv file.
  *    (defaults to no file)
  *  - duration: The length of the test in seconds, default 60 seconds
+ *  - check_backlog: If 1 skips sending packets when a backlog is detected
+ *    on the control channel. Default (0).
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -133,6 +136,7 @@ int start(struct oflops_context * ctx) {
   calculated_mean = 0;
   rcv_pkt_count = 0;
   pkt_counter = 0;
+  sent_pkt_counter = 0;
 
   snprintf(msg, sizeof(msg),  "Intializing module %s", name());
   //log when I start module
@@ -209,11 +213,27 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
   } else if(!strcmp(str,BYESTR)) {
     oflops_end_test(ctx,1);
   } else if(!strcmp(str,SND_PKT)) {
-    oflops_gettimeofday(ctx, &now);
-    generate_pkt_out(ctx, &now);
-    gettimeofday(&now, NULL);
-    add_time(&now, (1000000/probe_snd_rate)/sec_to_usec, (1000000/probe_snd_rate)%sec_to_usec);
-    oflops_schedule_timer_event(ctx,&now, const_cast<char *>(SND_PKT));
+    static uint64_t interval_ns = 0;
+    static timespec next_ts = {0};
+    struct timeval next_tv;
+
+    do {
+        oflops_gettimeofday(ctx, &now);
+
+        if (next_ts.tv_sec == 0) {
+            interval_ns = 1000000000/probe_snd_rate;
+            next_ts.tv_sec = now.tv_sec;
+            next_ts.tv_nsec = now.tv_usec*1000;
+        }
+
+        generate_pkt_out(ctx, &now);
+        add_timespec(&next_ts, 0, interval_ns);
+        next_tv.tv_sec = next_ts.tv_sec;
+        next_tv.tv_usec = next_ts.tv_nsec/1000;
+    } while (next_tv.tv_sec < now.tv_sec ||
+           (next_tv.tv_sec == now.tv_sec && next_tv.tv_usec <= now.tv_usec));
+
+    oflops_schedule_timer_event(ctx,&next_tv, const_cast<char *>(SND_PKT));
   } else if (!strcmp(str,FORCE_START)) {
     if (started == false) {
       struct timer_event new_te;
@@ -261,7 +281,17 @@ destroy(oflops_context *ctx) {
     free(lp);
   }
 
+  snprintf(msg, sizeof(msg), "Created: %d", pkt_counter);
+  printf("%s\n", msg);
+  oflops_log(now, GENERIC_MSG, msg);
+  snprintf(msg, sizeof(msg), "Sent: %d", sent_pkt_counter);
+  printf("%s\n", msg);
+  oflops_log(now, GENERIC_MSG, msg);
+  snprintf(msg, sizeof(msg), "Received: %"PRIu32, rcv_pkt_count);
+  printf("%s\n", msg);
+  oflops_log(now, GENERIC_MSG, msg);
   loss = (double)rcv_pkt_count/(double)pkt_counter;
+
   if(i > 0) {
     gsl_sort (data, 1, i);
     assert (i == rcv_pkt_count);
@@ -385,6 +415,9 @@ int init(struct oflops_context *ctx, char * config_str) {
       }
       else if(strcmp(param, "print") == 0) {
         print = value;
+      }
+      else if (strcmp(param, "check_backlog")== 0) {
+        check_backlog = !!strtol(value, NULL, 0);
       } else {
         fprintf(stderr, "Invalid parameter:%s\n", param);
       }
@@ -410,12 +443,8 @@ generate_pkt_out(struct oflops_context * ctx,struct timeval *now) {
     static struct pktgen_hdr *pktgen;
     static struct iphdr *ip;
 
-    if (has_backlog(ctx))
-        return 0;
-
     rofl::openflow::cofmsg_packet_out pkt_out(ctx->of_version);
     rofl::cpacket &pkt = pkt_out.set_packet();
-
 
   if(b == NULL) {
     b = (uint8_t *)xmalloc(pkt_size*sizeof(char));
@@ -468,8 +497,11 @@ generate_pkt_out(struct oflops_context * ctx,struct timeval *now) {
   int len = pkt_out.length();
   memset(buf, pkt_out.length(), len);
   pkt_out.pack(buf, 5000);
-  oflops_send_of_mesgs(ctx, (char *)buf, len);
 
+  if (check_backlog && has_control_backlog(ctx))
+        return 0;
+  oflops_send_of_mesgs(ctx, (char *)buf, len);
+  sent_pkt_counter++;
   return 1;
 }
 

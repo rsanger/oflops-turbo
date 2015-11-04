@@ -50,6 +50,7 @@ static uint64_t probe_snd_rate = 1000;
 static char *cli_param;
 static int pkt_size = 1500;
 static uint32_t pkt_in_count;
+static int pkt_out_sent_count;
 /* The number of pkt in with the correct cookie */
 static uint32_t pkt_in_cookie_count = 0;
 static int test_duration = 60;
@@ -61,6 +62,7 @@ static std::ofstream pktin_csv_output;
 static std::ofstream pktout_csv_output;
 static long double pktin_mean;
 static long double pktout_mean;
+static bool check_backlog = false;
 
 // Some constants to help me with conversions
 static const uint64_t sec_to_usec = 1000000;
@@ -98,6 +100,8 @@ static bool flow_mods;
  *    Two files will be created (print).in and (print).out. (default no file)
  *  - max_buf_size: Set the maximum packet-in size, default no buffer (0)
  *  - duration: The length of the test in seconds, default 60 seconds
+ *  - check_backlog: If 1 skips sending packets when a backlog is detected
+ *    on the control channel. Default (0).
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -148,6 +152,7 @@ int start(struct oflops_context * ctx) {
   pktout_mean = 0;
   rcv_pkt_count = 0;
   pkt_in_count = 0;
+  pkt_out_sent_count = 0;
 
   //log when I start module
   snprintf(msg, sizeof(msg),  "Intializing module %s", name());
@@ -280,6 +285,12 @@ static void print_pktout(oflops_context *ctx, int packets_sent) {
       free(lp);
     }
 
+    snprintf(msg, sizeof(msg), "Packet-outs sent: %d", pkt_out_sent_count);
+    printf("%s\n", msg);
+    oflops_log(now, GENERIC_MSG, msg);
+    snprintf(msg, sizeof(msg), "Packet-outs received: %" PRIu32, rcv_pkt_count);
+    printf("%s\n", msg);
+    oflops_log(now, GENERIC_MSG, msg);
     loss = (double)rcv_pkt_count/(double)packets_sent;
     if(i > 0) {
       gsl_sort (data, 1, i);
@@ -579,7 +590,9 @@ int init(struct oflops_context *ctx, char * config_str) {
         if (test_duration <= 0)
           perror_and_exit("Invalid duration, value must be larger than 0", 1);
       }
-      else {
+      else if (strcmp(param, "check_backlog")== 0) {
+        check_backlog = !!strtol(value, NULL, 0);
+      } else {
         fprintf(stderr, "Invalid parameter:%s\n", param);
       }
       param = pos;
@@ -645,7 +658,7 @@ int process_packet_in(struct oflops_context *ctx, uint8_t of_version, void *data
         TAILQ_INSERT_TAIL(&pktin_head, n1, entries);
     }
 
-    if (!has_backlog(ctx)) {
+    if (!check_backlog || !has_control_backlog(ctx)) {
         // Reverse byte order swapped fields by extract
         pktgen->tv_sec = htonl(pktgen->tv_sec);
         pktgen->tv_usec = htonl(pktgen->tv_usec);
@@ -669,6 +682,7 @@ int process_packet_in(struct oflops_context *ctx, uint8_t of_version, void *data
         memset(buf, pkt_out.length(), len);
         pkt_out.pack(buf, 5000);
         oflops_send_of_mesgs(ctx, (char *)buf, pktlen);
+        pkt_out_sent_count++;
     }
 
     return 0;

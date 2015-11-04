@@ -65,7 +65,8 @@ public:
         }
         wait_connected.notify_all();
     }
-    bool has_backlog(){
+
+    bool has_backlog() {
         fluid_base::OFConnection *conn = get_ofconnection(0);
         struct pollfd fds = {0};
         fds.fd = conn->get_fd();
@@ -172,7 +173,7 @@ extern "C" int write_oflops_control(oflops_context *ctx, void* data, size_t len)
     return 0;
 }
 
-extern "C" int has_backlog(oflops_context *ctx) {
+extern "C" int has_control_backlog(oflops_context *ctx) {
     BasicTestServer *test = static_cast<BasicTestServer *>(ctx->fluid_control);
     return test->has_backlog();
 }
