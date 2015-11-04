@@ -43,8 +43,8 @@ extern "C"{
 
 #undef OFP_VERSION
 
-// calculated sending time interval (measured in usec). 
-static uint64_t probe_snd_interval;
+// Probe rate in packets per second
+static uint64_t probe_snd_rate = 1000;
 
 // Number of flows to send. 
 static char *cli_param;
@@ -81,7 +81,7 @@ static bool ready_to_generate;
 static bool flow_mods;
 
 /**
- * \defgroup openflow_packet_in openflow packet in
+ * \defgroup openflow_packet_in_out openflow packet in
  * \ingroup modules
  * A module to benchmark the packet_in and packet_out functionality of an openflow implementation.
  * the module generates traffic at user specified rates and measures the delay to receive
@@ -89,16 +89,15 @@ static bool flow_mods;
  *
  * Parameters:
  *
- *    - pkt_size:  This parameter can be used to control the length of the
- *   packets of the packet_out message in bytes. It allows indirectly to adjust the packet
- * throughput of the experiment. (default 1500 bytes)
- *    - probe_snd_interval: This parameter controls the data rate of the 
- * measurement probe, in Mbps. (default 10Mbps)
- *    - print: This parameter enables the measurement module to save
- *      extended per packet measurement information to the given csv file.
- *      Two files will be created (print).in and (print).out. (default no file)
- *    - max_buf_size: Set the maximum packet-in size, default no buffer
- *    - duration: The length of the test in seconds, default 60 seconds
+ *  - pkt_size: This parameter can be used to control the length of the
+ *    packets in bytes. (default 1500 bytes)
+ *  - probe_snd_rate: This parameter controls the data rate of the
+ *    measurement probe in packets per second. The default is 1000.
+ *  - print: This parameter enables the measurement module to save
+ *    extended per packet measurement information to the given csv file.
+ *    Two files will be created (print).in and (print).out. (default no file)
+ *  - max_buf_size: Set the maximum packet-in size, default no buffer (0)
+ *  - duration: The length of the test in seconds, default 60 seconds
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -107,7 +106,7 @@ static bool flow_mods;
  */
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * get the name of the module
  * \return name of module
  */
@@ -123,7 +122,7 @@ const uint8_t *get_openflow_versions() {
 
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * empty flow tables and shcedule events.
  * \param ctx pointer to opaque context
  */
@@ -223,7 +222,7 @@ int start(struct oflops_context * ctx) {
 }
 
 /** 
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * Handle timer events
  * - BYESTR: terminate module execution
  * - SNMPGET: request SNMP counters
@@ -301,7 +300,7 @@ static void print_pktout(oflops_context *ctx, int packets_sent) {
 }
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * Calcute and log stats of packet_in packets
  * \param ctx data context of the module 
  */
@@ -338,7 +337,7 @@ destroy(oflops_context *ctx) {
     mean = gsl_stats_mean(data, 1, i);
     sd = gsl_stats_sd(data, 1, i);
     median = gsl_stats_median_from_sorted_data (data, 1, i);
-  } else if (pkt_in_count) {
+  } else {
     mean = pktin_mean;
   }
   snprintf(msg, sizeof(msg), "pktin-statistics:%f:%f:%f:%f:%zd", (double) mean, median,
@@ -358,7 +357,7 @@ destroy(oflops_context *ctx) {
 }
 
 /** 
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * define pcap filters for each channel 
  * \param ctx pointer to opaque context
  * \param ofc channel id
@@ -375,7 +374,7 @@ get_pcap_filter(struct oflops_context *ctx, oflops_channel_name ofc,
 }
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * log SNMP replies
  * \param ctx data context of module 
  * \param se pointer to SNMP data 
@@ -468,7 +467,7 @@ int handle_pcap_event(struct oflops_context *ctx, struct pcap_event *pe,
 }
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * Configure packet generator and start packet generation
  * \param ctx data context of the module 
  */
@@ -491,7 +490,7 @@ handle_traffic_generation (oflops_context *ctx) {
   det.udp_src_port = 8080;
   det.udp_dst_port = 8080;
   det.pkt_size = pkt_size;
-  det.delay = probe_snd_interval * 1000;
+  det.delay = 1000000000/probe_snd_rate;
   strcpy(det.flags, "IPDST_RND");
   add_traffic_generator(ctx, OFLOPS_DATA1, &det);
 
@@ -514,7 +513,7 @@ handle_traffic_generation (oflops_context *ctx) {
 }
 
 /**
- * \ingroup openflow_packet_in
+ * \ingroup openflow_packet_in_out
  * Initialization module with space separated string
  * \param ctx data context of the module 
  * \param config_str initiliazation string
@@ -556,10 +555,10 @@ int init(struct oflops_context *ctx, char * config_str) {
         if((pkt_size < MIN_PKT_SIZE) && (pkt_size > MAX_PKT_SIZE))
           perror_and_exit("Invalid packet size value", 1);
       }
-      else if(strcmp(param, "probe_snd_interval") == 0) {
+      else if(strcmp(param, "probe_snd_rate") == 0) {
         //parse int to get measurement probe rate
-        probe_snd_interval = strtol(value, NULL, 0);
-        if(( probe_snd_interval <= 0))
+        probe_snd_rate = strtol(value, NULL, 0);
+        if(( probe_snd_rate <= 0))
           perror_and_exit("Invalid probe rate param(Value must be larger than 0)", 1);
       }
       else if(strcmp(param, "print") == 0) {
@@ -588,8 +587,8 @@ int init(struct oflops_context *ctx, char * config_str) {
   } 
 
   //calculate sendind interval
-  fprintf(stderr, "Sending probe interval : %u usec (pkt_size: %u bytes )\n", 
-      (uint32_t)probe_snd_interval, (uint32_t)pkt_size);
+  fprintf(stderr, "Sending probe rate : %u usec (pkt_size: %u bytes )\n",
+      (uint32_t)probe_snd_rate, (uint32_t)pkt_size);
   return 0;
 }
 }

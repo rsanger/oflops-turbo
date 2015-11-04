@@ -46,8 +46,8 @@ extern "C" {
 
 #undef OFP_VERSION
 
-// calculated sending time interval (measured in usec). 
-uint64_t probe_snd_interval;
+// Probe rate in packets per second
+static uint64_t probe_snd_rate = 1000;
 
 static char *cli_param;
 static int pkt_size = 1500;
@@ -84,14 +84,14 @@ int generate_pkt_out(struct oflops_context * ctx, struct timeval *now);
  *
  * Parameters:
  *
- *    - pkt_size:  This parameter can be used to control the length of the
- *   packets of the measurement probe. It allows indirectly to adjust the packet
- * throughput of the experiment. (default 1500 bytes)
- *    - probe_snd_interval: This parameter controls the data rate of the
- * measurement probe, in Mbps. (default 10Mbps)
- *    - print: This parameter enables the measurement module to save
- *      extended per packet measurement information to the given csv file. (defaults to no file)
- *    - duration: The length of the test in seconds, default 60 seconds
+ *  - pkt_size:  This parameter can be used to control the length of the
+ *    packets. (default 1500 bytes)
+ *  - probe_snd_rate: This parameter controls the data rate of the
+ *    measurement probe in packets per second. The default is 1000.
+ *  - print: This parameter enables the measurement module to save
+ *    extended per packet measurement information to the given csv file.
+ *    (defaults to no file)
+ *  - duration: The length of the test in seconds, default 60 seconds
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -212,7 +212,7 @@ int handle_timer_event(struct oflops_context * ctx, struct timer_event *te)
     oflops_gettimeofday(ctx, &now);
     generate_pkt_out(ctx, &now);
     gettimeofday(&now, NULL);
-    add_time(&now, probe_snd_interval/sec_to_usec, probe_snd_interval%sec_to_usec);
+    add_time(&now, (1000000/probe_snd_rate)/sec_to_usec, (1000000/probe_snd_rate)%sec_to_usec);
     oflops_schedule_timer_event(ctx,&now, const_cast<char *>(SND_PKT));
   } else if (!strcmp(str,FORCE_START)) {
     if (started == false) {
@@ -372,10 +372,10 @@ int init(struct oflops_context *ctx, char * config_str) {
         if((pkt_size < MIN_PKT_SIZE) && (pkt_size > MAX_PKT_SIZE))
           perror_and_exit("Invalid packet size value", 1);
       }
-      else if(strcmp(param, "probe_snd_interval") == 0) {
+      else if(strcmp(param, "probe_snd_rate") == 0) {
         //parse int to get measurement probe rate
-        probe_snd_interval = strtol(value, NULL, 0);
-        if( probe_snd_interval <= 0)
+        probe_snd_rate = strtol(value, NULL, 0);
+        if( probe_snd_rate <= 0)
           perror_and_exit("Invalid probe rate param(Value must be larger than 0)", 1);
       }
       else if(strcmp(param, "duration") == 0) {
@@ -393,8 +393,8 @@ int init(struct oflops_context *ctx, char * config_str) {
   }
 
   //calculate sendind interval
-  fprintf(stderr, "Sending probe interval : %u usec (pkt_size: %u bytes)\n", 
-      (uint32_t)probe_snd_interval, (uint32_t)pkt_size);
+  fprintf(stderr, "Sending probe rate : %u usec (pkt_size: %u bytes)\n",
+      (uint32_t)probe_snd_rate, (uint32_t)pkt_size);
   return 0;
 }
 
