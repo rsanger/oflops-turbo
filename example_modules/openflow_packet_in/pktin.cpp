@@ -60,6 +60,7 @@ static uint16_t max_buf_size = rofl::openflow13::OFPCML_NO_BUFFER;
 static uint32_t first_seq;
 static uint32_t last_seq;
 static long double calculated_mean;
+static int table_id = 0;
 
 // Some constants to help me with conversions
 static const uint64_t sec_to_usec = 1000000;
@@ -96,6 +97,9 @@ static bool ready_to_generate;
  *  - duration: The length of the test in seconds, default 60 seconds
  *  - extra_rules: Adds the requested number of rules at a higher
  *    priority to the one being hit.
+ *  - table: The ID of the table to put rules into, note only this table is
+ *    cleared at the start of the test, allowing goto's in other tables to
+ *    persist.
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -161,6 +165,7 @@ int start(struct oflops_context * ctx) {
   fm = &del_flows.set_flowmod();
   fm->set_command(rofl::openflow::OFPFC_DELETE);
   fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+  fm->set_table_id(table_id);
   len = del_flows.length();
   memset(buf, 0, len); // ZERO buffer some devices check padding is zero
   del_flows.pack(buf, 1000);
@@ -176,6 +181,7 @@ int start(struct oflops_context * ctx) {
       fm = &send_to_controller.set_flowmod();
       fm->set_command(rofl::openflow::OFPFC_ADD);
       fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+      fm->set_table_id(table_id);
       fm->set_priority(15000);
       fm->set_match().set_in_port(ctx->channels[OFLOPS_DATA1].of_port);
       fm->set_match().set_ip_proto(17);
@@ -202,6 +208,7 @@ int start(struct oflops_context * ctx) {
   fm = &send_to_controller.set_flowmod();
   fm->set_command(rofl::openflow::OFPFC_ADD);
   fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+  fm->set_table_id(table_id);
   fm->set_priority(10000);
   fm->set_match().set_in_port(ctx->channels[OFLOPS_DATA1].of_port);
   fm->set_match().set_ip_proto(17);
@@ -513,6 +520,11 @@ int init(struct oflops_context *ctx, char * config_str) {
           extra_rules = strtol(value, NULL, 0);
           if (extra_rules < 0)
             perror_and_exit("Invalid number of extra rules, value must be positive", 1);
+      }
+      else if (strcmp(param, "table") == 0) {
+          table_id = strtol(value, NULL, 0);
+          if (table_id < 0 or table_id > rofl::openflow13::OFPTT_MAX)
+              perror_and_exit("Invalid table id must be less than OFPTT_MAX", 1);
       }
       else {
         fprintf(stderr, "Invalid parameter:%s\n", param);

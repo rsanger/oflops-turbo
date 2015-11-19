@@ -63,6 +63,8 @@ static std::ofstream pktout_csv_output;
 static long double pktin_mean;
 static long double pktout_mean;
 static bool check_backlog = false;
+static int table_id = 0;
+
 
 // Some constants to help me with conversions
 static const uint64_t sec_to_usec = 1000000;
@@ -102,6 +104,9 @@ static bool flow_mods;
  *  - duration: The length of the test in seconds, default 60 seconds
  *  - check_backlog: If 1 skips sending packets when a backlog is detected
  *    on the control channel. Default (0).
+ *  - table: The ID of the table to put rules into, note only this table is
+ *    cleared at the start of the test, allowing goto's in other tables to
+ *    persist.
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -173,6 +178,7 @@ int start(struct oflops_context * ctx) {
   fm = &del_flows.set_flowmod();
   fm->set_command(rofl::openflow::OFPFC_DELETE);
   fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+  fm->set_table_id(table_id);
   len = del_flows.length();
   memset(buf, 0, len); // ZERO buffer some devices check padding is zero
   del_flows.pack(buf, 1000);
@@ -183,6 +189,7 @@ int start(struct oflops_context * ctx) {
   fm = &send_to_controller.set_flowmod();
   fm->set_command(rofl::openflow::OFPFC_ADD);
   fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+  fm->set_table_id(table_id);
   fm->set_priority(10000);
   fm->set_match().set_in_port(ctx->channels[OFLOPS_DATA1].of_port);
   fm->set_match().set_ip_proto(17);
@@ -592,6 +599,11 @@ int init(struct oflops_context *ctx, char * config_str) {
       }
       else if (strcmp(param, "check_backlog")== 0) {
         check_backlog = !!strtol(value, NULL, 0);
+      }
+      else if (strcmp(param, "table") == 0) {
+          table_id = strtol(value, NULL, 0);
+          if (table_id < 0 or table_id > rofl::openflow13::OFPTT_MAX)
+              perror_and_exit("Invalid table id must be less than OFPTT_MAX", 1);
       } else {
         fprintf(stderr, "Invalid parameter:%s\n", param);
       }
@@ -679,7 +691,7 @@ int process_packet_in(struct oflops_context *ctx, uint8_t of_version, void *data
         output.set_max_len(rofl::openflow13::OFPCML_NO_BUFFER);
 
         int pktlen = pkt_out.length();
-        memset(buf, pkt_out.length(), len);
+        memset(buf, 0, pktlen);
         pkt_out.pack(buf, 5000);
         oflops_send_of_mesgs(ctx, (char *)buf, pktlen);
         pkt_out_sent_count++;

@@ -53,6 +53,7 @@ static char *cli_param;
 static int pkt_size = 1500;
 static int test_duration = 60;
 static volatile int started = 0;
+static int table_id = 0;
 static std::string print;
 static std::ofstream csv_output;
 static bool check_backlog = false;
@@ -95,6 +96,9 @@ int generate_pkt_out(struct oflops_context * ctx, struct timeval *now);
  *  - duration: The length of the test in seconds, default 60 seconds
  *  - check_backlog: If 1 skips sending packets when a backlog is detected
  *    on the control channel. Default (0).
+ *  - table: The ID of the table to put rules into, note only this table is
+ *    cleared at the start of the test, allowing goto's in other tables to
+ *    persist.
  * 
  * Copyright (C) University of Cambridge, Computer Lab, 2011
  * \author crotsos
@@ -160,6 +164,7 @@ int start(struct oflops_context * ctx) {
   fm = &del_flows.set_flowmod();
   fm->set_command(rofl::openflow::OFPFC_DELETE);
   fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
+  fm->set_table_id(table_id);
   len = del_flows.length();
   memset(buf, 0, len); // ZERO buffer some devices check padding is zero
   del_flows.pack(buf, 1000);
@@ -418,6 +423,11 @@ int init(struct oflops_context *ctx, char * config_str) {
       }
       else if (strcmp(param, "check_backlog")== 0) {
         check_backlog = !!strtol(value, NULL, 0);
+      }
+      else if (strcmp(param, "table") == 0) {
+          table_id = strtol(value, NULL, 0);
+          if (table_id < 0 or table_id > rofl::openflow13::OFPTT_MAX)
+              perror_and_exit("Invalid table id must be less than OFPTT_MAX", 1);
       } else {
         fprintf(stderr, "Invalid parameter:%s\n", param);
       }
@@ -495,7 +505,7 @@ generate_pkt_out(struct oflops_context * ctx,struct timeval *now) {
   output.set_max_len(rofl::openflow13::OFPCML_NO_BUFFER);
 
   int len = pkt_out.length();
-  memset(buf, pkt_out.length(), len);
+  memset(buf, 0, len);
   pkt_out.pack(buf, 5000);
 
   if (check_backlog && has_control_backlog(ctx))
