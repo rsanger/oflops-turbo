@@ -106,7 +106,7 @@ static const uint64_t byte_to_bits = 8, mbits_to_bits = 1024*1024;
 // packet generation local variables
 static int test_duration = 60;
 static uint64_t background_rate = 100;
-static uint64_t probe_snd_rate = 1000;
+static uint64_t probe_snd_rate = 0;
 static uint32_t pkt_size = 1500;
 static const char *network = "192.168.2.0";
 static int flows = 100;
@@ -604,7 +604,7 @@ handle_traffic_generation (oflops_context *ctx) {
     strcpy(det.flags, "");
     add_traffic_generator(ctx, OFLOPS_DATA2, &det);
 
-    if (reactive) {
+    if (probe_snd_rate) {
         det.pkt_size = pkt_size;
         strcpy(det.src_ip, "10.1.1.1");
         strcpy(det.dst_ip_min, "10.1.1.1");
@@ -718,7 +718,7 @@ static void process_packet_in(struct oflops_context *ctx, uint8_t of_version,
     struct timeval now, then;
     struct pktgen_hdr *pktgen;
 
-    if (flow_num < flows)
+    if (reactive && flow_num < flows)
     {
         add_rule_for_flow(ctx, flow_num);
         flow_num++;
