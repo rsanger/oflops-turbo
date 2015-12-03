@@ -4,6 +4,7 @@
 #include <rofl/common/openflow/messages/cofmsg.h>
 #include <mutex>
 #include <deque>
+#include <condition_variable>
 
 extern "C" {
 #include <sys/socket.h>
@@ -119,6 +120,10 @@ static uint32_t first_seq;
 static uint32_t last_seq;
 static long double calculated_mean;
 
+static std::mutex barrier_lock;
+static std::condition_variable barrier_cond;
+static bool ready_to_generate;
+
 //control if a per packet measurement log is created on destroy
 static std::string print;
 static struct timeval flow_mod_timestamp;
@@ -154,6 +159,7 @@ start(struct oflops_context * ctx) {
     last_seq = 0;
     pkt_in_count = 0;
     calculated_mean = 0;
+    ready_to_generate = false;
 
     pktins.clear();
 
@@ -245,6 +251,12 @@ start(struct oflops_context * ctx) {
       csv_output<<std::setfill('0');
       csv_pktin.open((print + ".in").c_str());
       csv_pktin<<std::setfill('0');
+    }
+
+    std::unique_lock<std::mutex> lock(barrier_lock);
+    if (!barrier_cond.wait_for(lock, std::chrono::seconds(25), [](){return ready_to_generate;})) {
+      oflops_gettimeofday(ctx, &now);
+      oflops_log(now, GENERIC_MSG, "Warning barrier message not received within 25 sec. Starting test anyway");
     }
 
     /**
@@ -343,6 +355,7 @@ static inline void add_rule_for_flow(struct oflops_context *ctx, int flow_offset
     fm->set_buffer_id(rofl::openflow::OFP_NO_BUFFER);
     fm->set_match().set_in_port(ctx->channels[OFLOPS_DATA2].of_port);
     fm->set_match().set_eth_type(ETHERTYPE_IP);
+    fm->set_table_id(table_id);
 
     rofl::openflow::cofactions &actions = ctx->of_version <= rofl::openflow10::OFP_VERSION?
                 fm->set_actions():
@@ -784,6 +797,11 @@ static void process_barrier(struct oflops_context *ctx, uint8_t of_version,
         struct timeval now;
         oflops_gettimeofday(ctx, &now);
         oflops_log(now, GENERIC_MSG, "BARRIER_START");
+        {
+          std::unique_lock<std::mutex> lock(barrier_lock);
+          ready_to_generate = true;
+          barrier_cond.notify_all();
+        }
         std::lock_guard<std::mutex> lock(output_lock);
         if (csv_output.is_open()) {
             csv_output<<"BARRIER_START,"<<now.tv_sec<<"."<<std::setw(6)<<now.tv_usec<<std::endl;
