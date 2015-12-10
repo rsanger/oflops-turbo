@@ -62,6 +62,7 @@ int main(int argc, char * argv[])
     reset_context(ctx);
     ctx->curr_test = ctx->tests[i];
     ctx->traffic_gen = &traffic_gen;
+    ctx->started = 0;
     param->ix_mod = i;
 
     setup_test_module(ctx,i);
@@ -72,6 +73,8 @@ int main(int argc, char * argv[])
     // Now start up the control channel
     setup_control_channel(ctx);
     ctx->curr_test->start(ctx);
+    ctx->started = 1;
+
     // the data generating thread
     pthread_create(&traffic_gen, NULL, start_traffic_thread, (void *)param);
     // the timer thread.

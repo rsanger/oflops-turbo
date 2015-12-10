@@ -240,7 +240,8 @@ static void process_pcap_event(oflops_context *ctx, test_module * mod, struct po
         pcap_e.data = pkt_data;
         memcpy(&pcap_e.pcaphdr, pkt_header, sizeof(pcap_e.pcaphdr));
         // dispatch it to the test module
-        mod->handle_pcap_event(ctx, &pcap_e, ch);
+        if (ctx->started)
+            mod->handle_pcap_event(ctx, &pcap_e, ch);
     } else  if(ctx->channels[ch].cap_type == NF2) {
         if(pe == NULL) {
             pe = malloc_and_check(sizeof(pcap_event));
@@ -252,7 +253,8 @@ static void process_pcap_event(oflops_context *ctx, test_module * mod, struct po
 
         if(data != NULL) {
             memcpy((char *) pe->data, data, pe->pcaphdr.caplen);
-            mod->handle_pcap_event(ctx,pe, ch);
+            if (ctx->started)
+                mod->handle_pcap_event(ctx,pe, ch);
         } else {
             fprintf(stderr, "errorous packet received\n");
             return;

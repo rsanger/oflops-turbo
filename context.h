@@ -45,6 +45,7 @@ typedef struct oflops_context {
   struct snmp_channel* snmp_channel_info; /**< An array of snmp channel configurations */
   int should_end;                         /**< */
   int should_continue;                    /**< */
+  volatile int started;                   /**< Internally set once the trace has started */
   struct wc_queue * timers;               /**< a linked list to store module event objects ordered by time */
   int dump_controller;                    /**< a pcap dump object, to dump pcap packets from the control channel */
   

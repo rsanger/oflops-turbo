@@ -45,6 +45,7 @@ oflops_context * oflops_default_context(void) {
 
   ctx->dump_controller = 0;
   ctx->cpuOID_count = 0;
+  ctx->started = 0;
   ctx->fluid_control = NULL;
   return ctx;
 }
