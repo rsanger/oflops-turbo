@@ -31,9 +31,9 @@ void perror_and_exit(const char *str, int exit_code);
 
 void add_time(struct timeval *now, time_t secs,  suseconds_t usecs);
 void set_timeval(struct timeval *target, struct timeval *val);
-inline uint32_t time_diff(struct timeval *now, struct timeval *then);
-inline int time_cmp(struct timeval *now, struct timeval *then);
-inline int64_t timespec_diff(struct timespec *now, struct timespec *then);
+uint32_t time_diff(struct timeval *now, struct timeval *then);
+int time_cmp(struct timeval *now, struct timeval *then);
+int64_t timespec_diff(struct timespec *now, struct timespec *then);
 void add_timespec(struct timespec *now, time_t secs, long nsecs);
 
 void* xmalloc(size_t len);
@@ -46,5 +46,5 @@ void fail(const char *msg);
 uint64_t ntohll(uint64_t val);
 uint16_t ip_sum_calc(uint16_t len_ip_header, uint16_t buff[]);
 int get_mac_address(char *intf_name, char mac_addr[]);
-inline void hexdump(const uint8_t *, uint32_t);
+void hexdump(const uint8_t *, uint32_t);
 #endif

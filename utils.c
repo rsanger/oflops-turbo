@@ -82,16 +82,16 @@ void add_timespec(struct timespec *now, time_t secs, long nsecs)
     }
 }
 
-inline uint32_t
+uint32_t
 time_diff(struct timeval *now, struct timeval *then) {
     return (then->tv_sec - now->tv_sec)*1000000 + (then->tv_usec - now->tv_usec);
 }
 
-inline int64_t timespec_diff(struct timespec *now, struct timespec *then) {
+int64_t timespec_diff(struct timespec *now, struct timespec *then) {
     return (then->tv_sec - now->tv_sec)*INT64_C(1000000000) + (int64_t)(then->tv_nsec - now->tv_nsec);
 }
 
-inline int
+int
 time_cmp(struct timeval *now, struct timeval *then) {
     if(then->tv_sec != now->tv_sec) {
         return (then->tv_sec < now->tv_sec)?-1:1;
@@ -101,7 +101,7 @@ time_cmp(struct timeval *now, struct timeval *then) {
         return 0;
 }
 
-inline void* xmalloc(size_t len)
+void* xmalloc(size_t len)
 {
     void *p = NULL;
     p = malloc(len);
@@ -110,7 +110,7 @@ inline void* xmalloc(size_t len)
     return p;
 }
 
-inline void fail(const char * msg) {
+void fail(const char * msg) {
     printf("error: %s\n", msg);
     exit(1);
 }
@@ -178,7 +178,7 @@ int get_mac_address(char *intf_name, char *mac_addr)
     return 0;
 }
 
-inline void hexdump(const uint8_t *data, uint32_t len)
+void hexdump(const uint8_t *data, uint32_t len)
 {
     int ix;
     for (ix=0;ix<len;ix++){
