@@ -67,6 +67,7 @@ public:
     }
 
     bool has_backlog() {
+#ifdef HAS_GET_FD
         fluid_base::OFConnection *conn = get_ofconnection(0);
         struct pollfd fds = {0};
         fds.fd = conn->get_fd();
@@ -74,6 +75,9 @@ public:
         poll(&fds, 1, 0);
 
         return fds.revents&POLLOUT ? false : true;
+#else
+	return false;
+#endif
     }
 };
 
@@ -146,10 +150,14 @@ extern "C" int setup_control_channel(oflops_context *ctx) {
         std::cerr<<"Connection failed, likely failed negotiation."<<std::endl;
         abort();
     }
-    fd =ser->get_ofconnection(0)->get_fd();
+#ifdef HAS_GET_FD
+    fd = ser->get_ofconnection(0)->get_fd();
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) < 0) {
             std::cerr<<"Failed to disable nagle!!"<<std::endl;
     }
+#else
+#warning "Will not support TCP_NODELAY"
+#endif
 
     std::cout<<"Ready to generate!!"<<std::endl;
     ctx->of_version = ser->get_ofconnection(0) ? ser->get_ofconnection(0)->get_version() : 0;
