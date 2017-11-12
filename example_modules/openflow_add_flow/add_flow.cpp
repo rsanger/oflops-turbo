@@ -195,6 +195,10 @@ start(struct oflops_context * ctx) {
     memset(buf, 0, len); // ZERO buffer some devices check padding is zero
     del_flows.pack(buf, 1000);
     oflops_send_of_mesgs(ctx, (char *)buf, len);
+    rofl::openflow::cofmsg_barrier_request barrier_del(ctx->of_version, 1000);
+    len = barrier_del.length();
+    barrier_del.pack(buf, 1000);
+    oflops_send_of_mesgs(ctx, (char *)buf, len);
 
     /**
      * Send flow records to start switching packets.
@@ -806,6 +810,11 @@ static void process_barrier(struct oflops_context *ctx, uint8_t of_version,
         if (csv_output.is_open()) {
             csv_output<<"BARRIER_START,"<<now.tv_sec<<"."<<std::setw(6)<<now.tv_usec<<std::endl;
         }
+    }
+    if (b_reply.get_xid() == 1000) {
+        struct timeval now;
+        oflops_gettimeofday(ctx, &now);
+        oflops_log(now, GENERIC_MSG, "BARRIER_DEL");
     }
 }
 

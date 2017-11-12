@@ -183,6 +183,10 @@ int start(struct oflops_context * ctx) {
   memset(buf, 0, len); // ZERO buffer some devices check padding is zero
   del_flows.pack(buf, 1000);
   oflops_send_of_mesgs(ctx, (char *)buf, len);
+  rofl::openflow::cofmsg_barrier_request barrier_del(ctx->of_version, 1000);
+  len = barrier_del.length();
+  barrier_del.pack(buf, 1000);
+  oflops_send_of_mesgs(ctx, (char *)buf, len);
 
   std::cout<<"OF version "<<(int)ctx->of_version<<" in use\n";
   rofl::openflow::cofmsg_flow_mod send_to_controller(ctx->of_version, 2);
@@ -720,7 +724,15 @@ extern "C" void of_message (struct oflops_context *ctx, uint8_t of_version, uint
     if (type == OF_MESSAGE(of_version, PACKET_IN)) {
         process_packet_in(ctx, of_version, data, len);
     } else if (type == OF_MESSAGE(of_version, BARRIER_REPLY)) {
-        process_barrier_reply(ctx);
+        rofl::openflow::cofmsg_barrier_reply rp(of_version);
+	rp.unpack((uint8_t *) data, len);
+	if (rp.get_xid() == 1450) {
+             process_barrier_reply(ctx);
+	} else {
+             struct timeval now;
+             oflops_gettimeofday(ctx, &now);
+             oflops_log(now, GENERIC_MSG, "Received other barrier reply");
+	}
     } else {
         struct timeval now;
         char buf[200];
