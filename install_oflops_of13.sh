@@ -1,6 +1,6 @@
-# Don't run as root, just copy out the apt line
+# Don't run as root, just copy and run the apt line as root
 # Install what we can from apt, this is correct for ubuntu/debian
-apt install git libtool build-essential autoconf libpcap-dev libsnmp-dev libevent-dev libsnmp-dev libgsl-dev
+# apt install git libtool build-essential autoconf libconfig-dev libpcap-dev libsnmp-dev libgsl-dev libssl-dev
 
 # NOTE We patch libfluid and use a newer libevent release TODO for SSL
 
@@ -9,9 +9,9 @@ set -e
 
 #Build and install locally
 mkdir -p build
-export CFLAGS="-I$(pwd)/build/include"
-export CPPFLAGS="-I$(pwd)/build/include"
-export CXXFLAGS="-I$(pwd)/build/include"
+export CFLAGS="-I$(pwd)/build/include -Wno-error=deprecated"
+export CPPFLAGS="-I$(pwd)/build/include -Wno-error=deprecated"
+export CXXFLAGS="-I$(pwd)/build/include -Wno-error=deprecated"
 export LDFLAGS="-L$(pwd)/build/lib"
 export PKG_CONFIG_PATH="$(pwd)/build/lib/pkgconfig/"
 
@@ -40,7 +40,7 @@ git clone https://github.com/OpenNetworkingFoundation/libfluid.git
 cd libfluid
 ./bootstrap.sh
 cd libfluid_base
-git checkout 0.2
+git checkout 56df5e20c49387ab8e6b5cd363c6c10d309f263e
 # PATCH for new libevent, works with SSL and get_fd for NO_DELAY
 git apply <<EOF
 diff --git a/fluid/OFConnection.cc b/fluid/OFConnection.cc
@@ -208,7 +208,7 @@ cd ..
 
 
 # Ready oflops
-git clone https://github.com/rsanger/oflops-turbo.git
+git clone https://github.com/wandsdn/oflops-turbo.git
 cd oflops-turbo
 git checkout wip_of13
 ./boot.sh
